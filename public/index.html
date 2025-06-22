@@ -268,9 +268,8 @@
         // State variables
         let mediaRecorder;
         let audioStream;
-        let audioChunks = [];
         let animationTimeout;
-        let currentUser = null; // Represents the logged-in user state from Firebase
+        let currentUser = null; 
         let activeContainer = null;
         let firebaseInitialized = false;
 
@@ -334,10 +333,6 @@
             showError(error.message, true);
         }
 
-
-        /**
-         * Closes an interactive container with reverse animation.
-         */
         function closeContainer(container) {
             if (!container || !container.classList.contains('is-active')) return;
 
@@ -353,9 +348,6 @@
             }
         }
 
-        /**
-         * Opens an interactive container, closing any other that is open.
-         */
         function openContainer(containerToOpen) {
             if (activeContainer && activeContainer !== containerToOpen) {
                 closeContainer(activeContainer);
@@ -411,6 +403,12 @@
                 wordSpan.style.animationDelay = `${index * delay}ms`;
                 element.appendChild(wordSpan);
             });
+        }
+        
+        function appendText(element, text) {
+             const textNode = document.createTextNode(text + " ");
+             element.appendChild(textNode);
+             element.scrollTop = element.scrollHeight;
         }
 
         function getApiKey() {
@@ -486,9 +484,15 @@
                     audioStream = new MediaStream(displayStream.getAudioTracks());
                     displayStream.getVideoTracks()[0].stop();
 
-                    audioChunks = []; // Reset chunks for new recording
                     mediaRecorder = new MediaRecorder(audioStream, { mimeType: 'audio/webm' });
                     
+                    const audioChunks = [];
+                    mediaRecorder.ondataavailable = (event) => {
+                        if (event.data.size > 0) {
+                            audioChunks.push(event.data);
+                        }
+                    };
+
                     mediaRecorder.onstop = async () => {
                         updateUI('Transcribing...');
                         const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
@@ -516,28 +520,23 @@
             }
         }
         
-        // This function will now be called by stopButton click
         function handleRecordingStop() {
             if (mediaRecorder && mediaRecorder.state === 'recording') {
-                mediaRecorder.stop(); // This will trigger the 'onstop' event
+                mediaRecorder.stop();
             }
             if (audioStream) {
                 audioStream.getTracks().forEach(track => track.stop());
             }
         }
         
-        // Helper to convert blob to base64
         function blobToBase64(blob) {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
                 reader.readAsDataURL(blob);
-                reader.onloadend = () => {
-                    resolve(reader.result.split(',')[1]);
-                };
+                reader.onloadend = () => resolve(reader.result.split(',')[1]);
                 reader.onerror = reject;
             });
         }
-
 
         async function transcribeAudio(base64Audio) {
             const apiKey = getApiKey();
@@ -553,7 +552,7 @@
                 const result = await response.json();
                 if (result.candidates && result.candidates[0].content.parts[0].text) {
                     const transcript = result.candidates[0].content.parts[0].text;
-                    animateText(outputEl, transcript, 20); // Animate transcript into the div
+                    animateText(outputEl, transcript, 20);
                     updateUI('Transcription Complete');
                     setAiButtonsState(true);
                 } else {
