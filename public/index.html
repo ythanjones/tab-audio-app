@@ -139,7 +139,7 @@
                 <div id="login-form" class="flex flex-col">
                     <input type="email" id="emailInput" class="login-input text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Email">
                     <div id="password-wrapper" class="login-form-extra">
-                        <input type="password" class="login-input text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Password">
+                        <input type="password" id="passwordInput" class="login-input text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Password">
                     </div>
                      <div id="auth-buttons" class="login-form-extra space-y-2">
                         <button id="loginButton" class="w-full text-sm bg-blue-600 text-white py-1.5 rounded-md">Login / Sign Up</button>
@@ -148,8 +148,12 @@
             </div>
 
             <!-- User Info / Logout Button -->
-             <div id="userInfo" class="items-center gap-3">
+             <div id="userInfo" class="items-center gap-4">
                  <span id="userEmail" class="text-sm font-medium text-slate-600"></span>
+                 <!-- Settings Button -->
+                 <a href="settings.html" title="Settings" class="text-slate-500 hover:text-blue-600">
+                     <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                 </a>
                  <button id="logoutButton" class="text-slate-500 hover:text-red-600">
                      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
                  </button>
@@ -186,10 +190,10 @@
             <div id="transcriptionOutput" class="w-full h-48 bg-slate-50 border border-slate-300 rounded-md p-4 text-slate-700 overflow-y-auto focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Transcription will appear here..."></div>
 
             <!-- AI Actions -->
-             <div id="aiActions" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+             <div id="aiActions" class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <button id="summarizeButton" class="w-full border border-slate-400 text-slate-500 font-semibold py-2 px-4 rounded-md transition-all duration-200 hover:bg-slate-500 hover:text-white btn-disabled" disabled>Summarize</button>
                 <button id="actionItemsButton" class="w-full border border-slate-400 text-slate-500 font-semibold py-2 px-4 rounded-md transition-all duration-200 hover:bg-slate-500 hover:text-white btn-disabled" disabled>Action Items</button>
-                <button id="titleButton" class="w-full border border-slate-400 text-slate-500 font-semibold py-2 px-4 rounded-md transition-all duration-200 hover:bg-slate-500 hover:text-white btn-disabled" disabled>Suggest Title</button>
+                <button id="extractTopicsButton" class="w-full border border-slate-400 text-slate-500 font-semibold py-2 px-4 rounded-md transition-all duration-200 hover:bg-slate-500 hover:text-white btn-disabled" disabled>Extract Topics</button>
              </div>
         </div>
     </div>
@@ -205,8 +209,30 @@
         </div>
     </div>
 
+    <!-- Firebase SDKs -->
+    <script type="module">
+        // Import the functions you need from the SDKs you need
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { 
+            getAuth, 
+            onAuthStateChanged,
+            createUserWithEmailAndPassword,
+            signInWithEmailAndPassword,
+            signOut
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
-    <script>
+        // -------------------------------------------------------------------
+        // --- PASTE YOUR FIREBASE CONFIGURATION OBJECT HERE ---
+        const firebaseConfig = {
+          apiKey: "AIzaSyBruGCfWHwVbxWC5mGUDTHAjT_1vcXveiw",
+          authDomain: "tab-audio-app.firebaseapp.com",
+          projectId: "tab-audio-app",
+          storageBucket: "tab-audio-app.appspot.com",
+          messagingSenderId: "715569829205",
+          appId: "1:715569829205:web:216b98f170035f2fcf0bdc"
+        };
+        // -------------------------------------------------------------------
+
         // DOM element references
         const appContainer = document.getElementById('app-container');
         const startButton = document.getElementById('startButton');
@@ -222,14 +248,17 @@
         const loginContainer = document.getElementById('loginContainer');
         const loginForm = document.getElementById('login-form');
         const emailInput = document.getElementById('emailInput');
+        const passwordInput = document.getElementById('passwordInput');
         const loginButton = document.getElementById('loginButton');
         const userInfo = document.getElementById('userInfo');
         const userEmailEl = document.getElementById('userEmail');
         const logoutButton = document.getElementById('logoutButton');
         
+        // AI Action Buttons
         const summarizeButton = document.getElementById('summarizeButton');
         const actionItemsButton = document.getElementById('actionItemsButton');
-        const titleButton = document.getElementById('titleButton');
+        const extractTopicsButton = document.getElementById('extractTopicsButton');
+
         const modalBackdrop = document.getElementById('modal-backdrop');
         const modalContent = document.getElementById('modal-content');
         const modalTitle = document.getElementById('modal-title');
@@ -239,10 +268,71 @@
         // State variables
         let mediaRecorder;
         let audioStream;
-        let audioChunks = [];
         let animationTimeout;
-        let mockCurrentUser = null; // Represents the logged-in user state
+        let currentUser = null; // Represents the logged-in user state from Firebase
         let activeContainer = null;
+        let firebaseInitialized = false;
+
+        // Initialize Firebase
+        try {
+            if (!firebaseConfig.apiKey) {
+                 throw new Error("Firebase config object is empty. Please paste your project's configuration keys into the script.");
+            }
+            const app = initializeApp(firebaseConfig);
+            const auth = getAuth(app);
+            firebaseInitialized = true;
+
+            onAuthStateChanged(auth, user => {
+                currentUser = user;
+                if (user) {
+                    appContainer.classList.add('logged-in');
+                    userEmailEl.textContent = user.email;
+                    closeContainer(loginContainer);
+                } else {
+                    appContainer.classList.remove('logged-in');
+                    userEmailEl.textContent = '';
+                }
+            });
+
+            async function handleAuth() {
+                const email = emailInput.value;
+                const password = passwordInput.value;
+                if (!email || !password) {
+                    showError("Please enter both email and password.");
+                    return;
+                }
+                hideError();
+
+                try {
+                    await signInWithEmailAndPassword(auth, email, password);
+                } catch (error) {
+                    if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+                        try {
+                            await createUserWithEmailAndPassword(auth, email, password);
+                        } catch (signUpError) {
+                            showError(signUpError.message);
+                        }
+                    } else {
+                        showError(error.message);
+                    }
+                }
+            }
+        
+            function handleLogout() {
+                signOut(auth).catch(error => showError(error.message));
+            }
+
+            loginButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                handleAuth();
+            });
+            logoutButton.addEventListener('click', handleLogout);
+
+        } catch (error) {
+            console.error("Firebase Initialization Error:", error.message);
+            showError(error.message, true);
+        }
+
 
         /**
          * Closes an interactive container with reverse animation.
@@ -251,11 +341,8 @@
             if (!container || !container.classList.contains('is-active')) return;
 
             if (container.id === 'loginContainer') {
-                container.classList.remove('is-fully-open'); // Retract password first
-                // Delay hiding the main form to allow the password to animate up
-                setTimeout(() => {
-                    container.classList.remove('is-active');
-                }, 300); // Should match the transition duration of max-height
+                container.classList.remove('is-fully-open');
+                setTimeout(() => container.classList.remove('is-active'), 300);
             } else {
                 container.classList.remove('is-active');
             }
@@ -270,95 +357,44 @@
          */
         function openContainer(containerToOpen) {
             if (activeContainer && activeContainer !== containerToOpen) {
-                closeContainer(activeContainer); // Close the other one
+                closeContainer(activeContainer);
             }
             
             containerToOpen.classList.add('is-active');
             activeContainer = containerToOpen;
 
-            // Trigger second-stage "joke gun" animation for login or autofocus for API key
             if (containerToOpen.id === 'loginContainer') {
                  setTimeout(() => {
-                    if (containerToOpen.classList.contains('is-active')) {
-                       containerToOpen.classList.add('is-fully-open');
-                    }
-                }, 400); // Match width transition duration
+                    if (containerToOpen.classList.contains('is-active')) containerToOpen.classList.add('is-fully-open');
+                }, 400);
             } else if (containerToOpen.id === 'apiKeyContainer') {
                 setTimeout(() => {
-                    if (containerToOpen.classList.contains('is-active')) {
-                       apiKeyInput.focus();
-                    }
-                }, 400); // Match width transition duration
+                    if (containerToOpen.classList.contains('is-active')) apiKeyInput.focus();
+                }, 400);
             }
         }
 
-        // --- Event Listeners for Interactive Icons ---
         [apiKeyContainer, loginContainer].forEach(container => {
             container.addEventListener('click', (e) => {
                 e.stopPropagation();
-                if (e.target === apiKeyInput) return; // Fix: Don't toggle if click is on input
-                
-                if (activeContainer === container) {
-                    closeContainer(container);
-                } else {
-                    openContainer(container);
-                }
+                if (e.target.tagName === 'INPUT') return;
+                if (activeContainer === container) closeContainer(container);
+                else openContainer(container);
             });
         });
 
-        // Close containers when clicking outside of them
-        document.addEventListener('click', () => {
-            if (activeContainer) {
-                closeContainer(activeContainer);
-            }
-        });
+        document.addEventListener('click', () => { if (activeContainer) closeContainer(activeContainer); });
 
-        // Handle Enter key for API key input
         apiKeyInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
-                e.preventDefault(); // Prevent any form submission
-                if (getApiKey()) { // This also shows an error if empty
+                e.preventDefault();
+                if (getApiKey()) {
                     animateText(statusEl, "API Key set for this session.");
                     closeContainer(apiKeyContainer);
                 }
             }
         });
 
-
-        /**
-         * Handles the login simulation.
-         */
-        function handleLogin() {
-            const email = emailInput.value;
-            if (email) {
-                mockCurrentUser = { email: email, apiKey: null };
-                appContainer.classList.add('logged-in');
-                userEmailEl.textContent = mockCurrentUser.email;
-                hideError();
-                closeContainer(loginContainer);
-            } else {
-                showError("Please enter an email to log in.");
-            }
-        }
-        
-        /**
-         * Handles the logout simulation.
-         */
-        function handleLogout() {
-            mockCurrentUser = null;
-            appContainer.classList.remove('logged-in');
-            userEmailEl.textContent = '';
-        }
-
-        loginButton.addEventListener('click', (e) => {
-            e.stopPropagation(); // Prevent the click from bubbling up and closing the form
-            handleLogin();
-        });
-        logoutButton.addEventListener('click', handleLogout);
-
-        /**
-         * Animates text into an element word by word.
-         */
         function animateText(element, text, delay = 30) {
             clearTimeout(animationTimeout);
             element.innerHTML = '';
@@ -377,22 +413,21 @@
         }
 
         function getApiKey() {
-            if (mockCurrentUser && mockCurrentUser.apiKey) {
-                hideError();
-                return mockCurrentUser.apiKey;
-            }
             const sessionApiKey = apiKeyInput.value.trim();
             if (sessionApiKey) {
                  hideError();
                  return sessionApiKey;
             }
-            showError("Please log in or provide a session API key by clicking the key icon.");
+            showError("Please provide a session API key by clicking the key icon.");
             return null;
         }
 
-        function showError(message) {
+        function showError(message, isCritical = false) {
             errorText.textContent = message;
             errorDisplay.classList.remove('hidden');
+            if(isCritical) {
+                errorDisplay.classList.add('bg-red-200', 'border-red-500', 'text-red-900', 'p-4', 'font-bold');
+            }
         }
 
         function hideError() {
@@ -402,7 +437,7 @@
         }
 
         function setAiButtonsState(enabled) {
-            const buttons = [summarizeButton, actionItemsButton, titleButton];
+            const buttons = [summarizeButton, actionItemsButton, extractTopicsButton];
             buttons.forEach(button => {
                 button.disabled = !enabled;
                 button.classList.toggle('btn-disabled', !enabled);
@@ -416,7 +451,7 @@
                 case 'Recording...':
                     startButton.classList.add('btn-disabled');
                     stopButton.classList.remove('btn-disabled');
-                    outputEl.innerHTML = ''; // Clear previous transcription
+                    outputEl.innerHTML = '';
                     setAiButtonsState(false);
                     break;
                 case 'Stopped':
@@ -425,7 +460,7 @@
                     startButton.classList.remove('btn-disabled');
                     stopButton.classList.add('btn-disabled');
                     break;
-                default: // Initial, etc.
+                default:
                      startButton.classList.remove('btn-disabled');
                     stopButton.classList.add('btn-disabled');
                     setAiButtonsState(false);
@@ -433,6 +468,10 @@
         }
 
         async function handleStartClick() {
+            if (!firebaseInitialized) {
+                showError("Cannot start recording. Firebase is not configured correctly.", true);
+                return;
+            }
             hideError();
             if (!getApiKey()) return;
 
@@ -446,14 +485,31 @@
                     audioStream = new MediaStream(displayStream.getAudioTracks());
                     displayStream.getVideoTracks()[0].stop();
 
-                    audioChunks = [];
-                    mediaRecorder = new MediaRecorder(audioStream, { mimeType: 'audio/webm' });
-                    mediaRecorder.ondataavailable = event => { audioChunks.push(event.data); };
-                    mediaRecorder.onstop = handleRecordingStop;
+                    mediaRecorder = new MediaRecorder(audioStream, { mimeType: 'audio/webm', timeslice: 5000 }); // Slice audio every 5 seconds
+                    
+                    mediaRecorder.ondataavailable = async (event) => {
+                        if (event.data.size > 0) {
+                            const reader = new FileReader();
+                            reader.readAsDataURL(event.data);
+                            reader.onloadend = async () => {
+                                const base64String = reader.result.split(',')[1];
+                                await transcribeChunk(base64String);
+                            };
+                        }
+                    };
+
+                    mediaRecorder.onstop = () => {
+                        updateUI('Transcription Complete');
+                        if (outputEl.textContent.trim().length > 0) {
+                           setAiButtonsState(true);
+                        }
+                    };
+                    
+                    outputEl.innerHTML = '';
+                    updateUI('Recording...');
                     mediaRecorder.start();
                     
                     audioStream.getTracks()[0].onended = () => stopButton.click();
-                    updateUI('Recording...');
                 } else {
                     showError("No audio track found. Please ensure you share tab audio.");
                     displayStream.getTracks().forEach(track => track.stop());
@@ -470,27 +526,24 @@
         }
 
         async function handleRecordingStop() {
-            if (audioChunks.length === 0) {
-                updateUI('Stopped', 'No audio was recorded.');
-                return;
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                mediaRecorder.stop();
             }
-            updateUI('Transcribing...');
-            const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-
-            const reader = new FileReader();
-            reader.readAsDataURL(audioBlob);
-            reader.onloadend = async () => {
-                const base64String = reader.result.split(',')[1];
-                await transcribeAudio(base64String);
-            };
+            if (audioStream) {
+                audioStream.getTracks().forEach(track => track.stop());
+            }
+            updateUI('Transcription Complete');
+            if (outputEl.textContent.trim().length > 0) {
+                setAiButtonsState(true);
+            }
         }
 
-        async function transcribeAudio(base64Audio) {
+        async function transcribeChunk(base64Audio) {
             const apiKey = getApiKey();
             if (!apiKey) return;
 
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-            const payload = { contents: [{ parts: [{ text: "Transcribe the following audio recording." }, { inline_data: { mime_type: "audio/webm", data: base64Audio } }] }] };
+            const payload = { contents: [{ parts: [{ text: "Transcribe the following short audio clip." }, { inline_data: { mime_type: "audio/webm", data: base64Audio } }] }] };
 
             try {
                 const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
@@ -498,16 +551,14 @@
                 
                 const result = await response.json();
                 if (result.candidates && result.candidates[0].content.parts[0].text) {
-                    const transcript = result.candidates[0].content.parts[0].text;
-                    animateText(outputEl, transcript, 20); // Animate transcript into the div
-                    updateUI('Transcription Complete');
-                    setAiButtonsState(true);
-                } else {
-                    throw new Error('Invalid API response.');
+                    const transcriptChunk = result.candidates[0].content.parts[0].text;
+                    const textNode = document.createTextNode(transcriptChunk + " ");
+                    outputEl.appendChild(textNode);
+                    outputEl.scrollTop = outputEl.scrollHeight;
                 }
             } catch (err) {
-                showError(`Transcription Failed: ${err.message}`);
-                updateUI('Transcription Failed');
+                console.error(`Chunk transcription failed: ${err.message}`);
+                // Don't show a big error for a single failed chunk, just log it.
             }
         }
 
@@ -526,7 +577,7 @@
                 
                  const result = await response.json();
                  if (result.candidates && result.candidates[0].content.parts[0].text) {
-                    animateText(modalBody, result.candidates[0].content.parts[0].text.replace(/\*/g, '')); // Animate result and remove asterisks
+                    animateText(modalBody, result.candidates[0].content.parts[0].text.replace(/\*/g, ''));
                  } else {
                     throw new Error('Invalid API response.');
                  }
@@ -558,7 +609,7 @@
 
         // --- Event Listeners ---
         startButton.addEventListener('click', handleStartClick);
-        stopButton.addEventListener('click', () => { mediaRecorder?.stop(); });
+        stopButton.addEventListener('click', handleRecordingStop);
 
         const aiButtonHandler = (promptFn, taskTitle) => () => {
             const transcript = outputEl.textContent;
@@ -571,7 +622,7 @@
 
         summarizeButton.addEventListener('click', aiButtonHandler(t => `Concisely summarize the following transcript:\n\n---\n${t}\n---`, "Summary"));
         actionItemsButton.addEventListener('click', aiButtonHandler(t => `List all action items from this transcript. If none, state that clearly:\n\n---\n${t}\n---`, "Action Items"));
-        titleButton.addEventListener('click', aiButtonHandler(t => `Generate 5 potential titles for this transcript, each on a new line:\n\n---\n${t}\n---`, "Suggested Titles"));
+        extractTopicsButton.addEventListener('click', aiButtonHandler(t => `Analyze the following transcript and extract the main topics or keywords discussed. Present them as a comma-separated list.\n\n---\n${t}\n---`, "Key Topics"));
         
         modalClose.addEventListener('click', closeModal);
         
