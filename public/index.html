@@ -507,6 +507,7 @@
                         if (outputEl.textContent.trim().length > 0) {
                            setAiButtonsState(true);
                         }
+                         updateUI('Stopped');
                     };
                     
                     outputEl.innerHTML = '';
@@ -514,7 +515,7 @@
                     updateUI('Recording...');
                     mediaRecorder.start(timeSlice);
                     
-                    audioStream.getTracks()[0].onended = () => stopButton.click();
+                    audioStream.getTracks()[0].onended = () => handleRecordingStop();
                 } else {
                     showError("No audio track found. Please ensure you share tab audio.");
                     displayStream.getTracks().forEach(track => track.stop());
@@ -537,7 +538,6 @@
             if (audioStream) {
                 audioStream.getTracks().forEach(track => track.stop());
             }
-             updateUI('Stopped');
         }
         
         function blobToBase64(blob) {
@@ -551,7 +551,10 @@
         
         async function transcribeChunk(base64Audio) {
             const apiKey = getApiKey();
-            if (!apiKey) return;
+            if (!apiKey) {
+                handleRecordingStop(); // Stop recording if the key is suddenly missing
+                return;
+            }
 
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
             const payload = { contents: [{ parts: [{ text: "Transcribe the following short audio clip." }, { inline_data: { mime_type: "audio/webm", data: base64Audio } }] }] };
@@ -559,8 +562,8 @@
             try {
                 const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
                 if (!response.ok) {
-                    console.error(`Chunk transcription API Error: ${response.status}`);
-                    return; 
+                    const errorData = await response.json();
+                    throw new Error(errorData.error.message || `API Error: ${response.status}`);
                 }
                 
                 const result = await response.json();
@@ -570,6 +573,8 @@
                 }
             } catch (err) {
                  console.error(`Chunk transcription failed: ${err.message}`);
+                 showError(`Real-time transcription failed. Check your API key. Recording stopped.`);
+                 handleRecordingStop();
             }
         }
 
