@@ -381,10 +381,7 @@
         apiKeyInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 e.preventDefault();
-                if (getApiKey()) {
-                    animateText(statusEl, "API Key set for this session.");
-                    closeContainer(apiKeyContainer);
-                }
+                validateApiKey(apiKeyInput.value.trim());
             }
         });
 
@@ -421,6 +418,32 @@
             return null;
         }
 
+        async function validateApiKey(key) {
+            if (!key) {
+                showError("API key field is empty.");
+                return;
+            }
+            animateText(statusEl, "Validating API Key...");
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`;
+            const payload = { contents: [{ parts: [{ text: "hello" }] }] };
+            try {
+                const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                if (response.ok) {
+                    animateText(statusEl, "API Key is valid.");
+                    hideError();
+                    closeContainer(apiKeyContainer);
+                } else {
+                    const error = await response.json();
+                    throw new Error(error.error.message || `HTTP error! status: ${response.status}`);
+                }
+            } catch (err) {
+                console.error("API Key validation error:", err);
+                showError(`API Key validation failed: ${err.message}`);
+                animateText(statusEl, "Invalid API Key.");
+            }
+        }
+
+
         function showError(message, isCritical = false) {
             errorText.textContent = message;
             errorDisplay.classList.remove('hidden');
@@ -445,25 +468,10 @@
         
         function updateUI(status, message = '') {
             animateText(statusEl, message || status);
-
-            switch (status) {
-                case 'Recording...':
-                    startButton.classList.add('btn-disabled');
-                    stopButton.classList.remove('btn-disabled');
-                    outputEl.innerHTML = '';
-                    setAiButtonsState(false);
-                    break;
-                case 'Stopped':
-                case 'Transcription Complete':
-                case 'Transcription Failed':
-                    startButton.classList.remove('btn-disabled');
-                    stopButton.classList.add('btn-disabled');
-                    break;
-                default:
-                     startButton.classList.remove('btn-disabled');
-                    stopButton.classList.add('btn-disabled');
-                    setAiButtonsState(false);
-            }
+            startButton.disabled = (status === 'Recording...');
+            startButton.classList.toggle('btn-disabled', status === 'Recording...');
+            stopButton.disabled = (status !== 'Recording...');
+            stopButton.classList.toggle('btn-disabled', status !== 'Recording...');
         }
 
         async function handleStartClick() {
@@ -486,23 +494,25 @@
 
                     mediaRecorder = new MediaRecorder(audioStream, { mimeType: 'audio/webm' });
                     
-                    const audioChunks = [];
-                    mediaRecorder.ondataavailable = (event) => {
+                    const timeSlice = 3000; // Transcribe every 3 seconds
+                    mediaRecorder.ondataavailable = async (event) => {
                         if (event.data.size > 0) {
-                            audioChunks.push(event.data);
+                            const base64String = await blobToBase64(event.data);
+                            transcribeChunk(base64String);
                         }
                     };
 
-                    mediaRecorder.onstop = async () => {
-                        updateUI('Transcribing...');
-                        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                        const base64String = await blobToBase64(audioBlob);
-                        await transcribeAudio(base64String);
+                    mediaRecorder.onstop = () => {
+                        animateText(statusEl, 'Transcription Complete');
+                        if (outputEl.textContent.trim().length > 0) {
+                           setAiButtonsState(true);
+                        }
                     };
-
+                    
                     outputEl.innerHTML = '';
+                    setAiButtonsState(false);
                     updateUI('Recording...');
-                    mediaRecorder.start();
+                    mediaRecorder.start(timeSlice);
                     
                     audioStream.getTracks()[0].onended = () => stopButton.click();
                 } else {
@@ -511,11 +521,11 @@
                 }
             } catch (err) {
                 console.error("Error starting recording:", err);
+                updateUI('Error', 'Failed to start recording.');
                 if (err.name === 'NotAllowedError' || err.name === 'AbortError') {
-                    updateUI('Permission Denied');
+                    showError('Permission to capture screen/audio was denied.');
                 } else {
-                    showError("An unknown error occurred during setup.");
-                    updateUI('Error');
+                    showError(`An unknown error occurred: ${err.message}`);
                 }
             }
         }
@@ -527,6 +537,7 @@
             if (audioStream) {
                 audioStream.getTracks().forEach(track => track.stop());
             }
+             updateUI('Stopped');
         }
         
         function blobToBase64(blob) {
@@ -537,32 +548,31 @@
                 reader.onerror = reject;
             });
         }
-
-        async function transcribeAudio(base64Audio) {
+        
+        async function transcribeChunk(base64Audio) {
             const apiKey = getApiKey();
             if (!apiKey) return;
 
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-            const payload = { contents: [{ parts: [{ text: "Transcribe the following audio recording." }, { inline_data: { mime_type: "audio/webm", data: base64Audio } }] }] };
+            const payload = { contents: [{ parts: [{ text: "Transcribe the following short audio clip." }, { inline_data: { mime_type: "audio/webm", data: base64Audio } }] }] };
 
             try {
                 const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-                if (!response.ok) throw new Error(`API Error: ${response.status}`);
+                if (!response.ok) {
+                    console.error(`Chunk transcription API Error: ${response.status}`);
+                    return; 
+                }
                 
                 const result = await response.json();
                 if (result.candidates && result.candidates[0].content.parts[0].text) {
-                    const transcript = result.candidates[0].content.parts[0].text;
-                    animateText(outputEl, transcript, 20);
-                    updateUI('Transcription Complete');
-                    setAiButtonsState(true);
-                } else {
-                    throw new Error('Invalid API response.');
+                    const transcriptChunk = result.candidates[0].content.parts[0].text;
+                    appendText(outputEl, transcriptChunk);
                 }
             } catch (err) {
-                showError(`Transcription Failed: ${err.message}`);
-                updateUI('Transcription Failed');
+                 console.error(`Chunk transcription failed: ${err.message}`);
             }
         }
+
 
         async function generateTextWithGemini(prompt, taskTitle) {
             const apiKey = getApiKey();
