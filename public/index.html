@@ -120,7 +120,7 @@
         <div class="absolute top-0 left-0 w-full flex justify-between items-start px-8 py-6">
             <!-- API Key Icon and Input -->
             <div id="apiKeyContainer" class="interactive-icon-container">
-                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-animated text-slate-400">
+                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-animated text-slate-400">
                     <circle cx="7" cy="12" r="4"></circle>
                     <line x1="11" y1="12" x2="22" y2="12"></line>
                     <line x1="14" y1="12" x2="14" y2="16"></line>
@@ -211,29 +211,26 @@
 
     <!-- Firebase SDKs -->
     <script type="module">
-        // Import the functions you need from the SDKs you need
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAnalytics, logEvent as fbLogEvent } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-analytics.js";
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js";
+        import { getAnalytics, logEvent as fbLogEvent } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-analytics.js";
         import { 
             getAuth, 
             onAuthStateChanged,
             createUserWithEmailAndPassword,
             signInWithEmailAndPassword,
             signOut
-        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-auth.js";
 
-        // -------------------------------------------------------------------
-        // --- PASTE YOUR FIREBASE CONFIGURATION OBJECT HERE ---
+        // Your web app's Firebase configuration
         const firebaseConfig = {
-          apiKey: "AIzaSyBruGCfWHwVbxWC5mGUDTHAjT_1vcXveiw",
-          authDomain: "tab-audio-app.firebaseapp.com",
-          projectId: "tab-audio-app",
-          storageBucket: "tab-audio-app.appspot.com",
-          messagingSenderId: "715569829205",
-          appId: "1:715569829205:web:216b98f170035f2fcf0bdc",
-          measurementId: "G-BDW8YWD1QW"
+            apiKey: "AIzaSyBruGCfWHwVbxWC5mGUDTHAjT_1vcXveiw",
+            authDomain: "tab-audio-app.firebaseapp.com",
+            projectId: "tab-audio-app",
+            storageBucket: "tab-audio-app.firebasestorage.app",
+            messagingSenderId: "715569829205",
+            appId: "1:715569829205:web:216b98f170035f2fcf0bdc",
+            measurementId: "G-W5VMCM4HX4"
         };
-        // -------------------------------------------------------------------
 
         // DOM element references
         const appContainer = document.getElementById('app-container');
@@ -277,7 +274,6 @@
         let analytics;
         let recordingStartTime;
         let recordingFeedbackInterval;
-
 
         // Initialize Firebase
         try {
@@ -509,29 +505,28 @@
                     
                     logEvent('recording_started', { user_id: currentUser ? currentUser.uid : 'anonymous' });
                     recordingStartTime = Date.now();
-
                     const audioChunks = [];
+
                     mediaRecorder = new MediaRecorder(audioStream, { mimeType: 'audio/webm' });
+                    
+                    mediaRecorder.onstop = async () => {
+                         if (recordingFeedbackInterval) clearInterval(recordingFeedbackInterval);
+                         const duration_seconds = Math.round((Date.now() - recordingStartTime) / 1000);
+                         updateUI('Transcribing...', 'Finalizing transcription...');
+                         const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                         if (audioBlob.size === 0) {
+                             updateUI('Stopped', 'No audio was recorded.');
+                             logEvent('recording_stopped', { duration_seconds, final_word_count: 0 });
+                             return;
+                         }
+                         const base64String = await blobToBase64(audioBlob);
+                         await transcribeAudio(base64String);
+                         const final_word_count = outputEl.textContent.trim().split(/\s+/).length;
+                         logEvent('recording_stopped', { duration_seconds, final_word_count });
+                    };
                     
                     mediaRecorder.ondataavailable = (event) => {
                         if (event.data.size > 0) audioChunks.push(event.data);
-                    };
-
-                    mediaRecorder.onstop = async () => {
-                        const duration_seconds = Math.round((Date.now() - recordingStartTime) / 1000);
-                        if(audioChunks.length === 0) {
-                             logEvent('recording_stopped', { duration_seconds, final_word_count: 0 });
-                             updateUI('Stopped', 'No audio was recorded.');
-                             return;
-                        }
-
-                        updateUI('Transcribing...', 'Finalizing transcription...');
-                        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                        const base64String = await blobToBase64(audioBlob);
-                        await transcribeAudio(base64String);
-
-                        const final_word_count = outputEl.textContent.trim().split(/\s+/).length;
-                        logEvent('recording_stopped', { duration_seconds, final_word_count });
                     };
                     
                     outputEl.innerHTML = '';
@@ -539,7 +534,6 @@
                     updateUI('Recording...', 'Recording...');
                     mediaRecorder.start();
 
-                    // Visual feedback during recording
                     let dotCount = 1;
                     recordingFeedbackInterval = setInterval(() => {
                         animateText(statusEl, "Recording" + ".".repeat(dotCount));
