@@ -285,7 +285,7 @@
         let audioStream;
         let animationTimeout;
         let currentUser = null; 
-        let userApiKey = null;
+        let activeApiKey = null; // Single source of truth for the API key being used
         let activeContainer = null;
         let firebaseInitialized = false;
         let analytics, db;
@@ -313,7 +313,7 @@
                 } else {
                     appContainer.classList.remove('logged-in');
                     userEmailEl.textContent = '';
-                    userApiKey = null;
+                    activeApiKey = null; // Clear key on logout
                 }
             });
 
@@ -438,20 +438,15 @@
         }
         
         function getApiKey() {
-            if (currentUser && userApiKey) {
+            if (activeApiKey) {
                 hideError();
-                return userApiKey;
-            }
-            const sessionApiKey = apiKeyInput.value.trim();
-            if (sessionApiKey) {
-                 hideError();
-                 return sessionApiKey;
+                return activeApiKey;
             }
             showError("Please log in and set your API key in settings, or provide a session key.");
             return null;
         }
 
-        async function validateApiKey(key) {
+        async function validateApiKey(key, shouldSave = false) {
             if (!key) {
                 showError("API key field is empty.");
                 return;
@@ -462,13 +457,13 @@
             try {
                 const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
                 if (response.ok) {
+                    activeApiKey = key; // Set the single source of truth for the API key
                     animateText(statusEl, "API Key is valid.");
                     logEvent('api_key_validated', { success: true });
                     hideError();
                     closeContainer(apiKeyContainer);
-                    if (currentUser) {
+                    if (currentUser && shouldSave) {
                         await saveUserApiKey(key);
-                        userApiKey = key;
                         animateText(statusEl, "API Key saved to your profile.");
                     }
                 } else {
@@ -752,15 +747,15 @@
                 const userDocRef = doc(db, "users", currentUser.uid);
                 const docSnap = await getDoc(userDocRef);
                 if (docSnap.exists() && docSnap.data().geminiApiKey) {
-                    userApiKey = docSnap.data().geminiApiKey;
+                    activeApiKey = docSnap.data().geminiApiKey;
                     console.log("User API key loaded.");
                 } else {
-                    userApiKey = null;
+                    activeApiKey = null;
                     console.log("No saved API key found for user.");
                 }
             } catch (e) {
                 console.error("Error fetching API key: ", e);
-                userApiKey = null;
+                activeApiKey = null;
             }
         }
         
@@ -791,8 +786,8 @@
             const revealApiKeyBtn = document.getElementById('revealApiKeyBtn');
             const saveApiKeyBtn = document.getElementById('saveApiKeyBtn');
 
-            if (userApiKey) {
-                modalApiKeyInput.value = userApiKey;
+            if (activeApiKey) {
+                modalApiKeyInput.value = activeApiKey;
             }
 
             revealApiKeyBtn.addEventListener('click', () => {
