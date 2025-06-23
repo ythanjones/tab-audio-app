@@ -273,6 +273,10 @@
         let activeContainer = null;
         let firebaseInitialized = false;
 
+        // --- Real-Time Transcription Queue ---
+        const transcriptionQueue = [];
+        let isProcessingQueue = false;
+
         // Initialize Firebase
         try {
             if (!firebaseConfig.apiKey) {
@@ -494,26 +498,25 @@
 
                     mediaRecorder = new MediaRecorder(audioStream, { mimeType: 'audio/webm' });
                     
-                    const timeSlice = 3000; // Transcribe every 3 seconds
                     mediaRecorder.ondataavailable = async (event) => {
                         if (event.data.size > 0) {
-                            const base64String = await blobToBase64(event.data);
-                            transcribeChunk(base64String);
+                           transcriptionQueue.push(event.data);
+                           processTranscriptionQueue();
                         }
                     };
 
                     mediaRecorder.onstop = () => {
-                        animateText(statusEl, 'Transcription Complete');
+                        processTranscriptionQueue(true); // Process any remaining chunks
+                        updateUI('Transcription Complete', 'Transcription Complete');
                         if (outputEl.textContent.trim().length > 0) {
                            setAiButtonsState(true);
                         }
-                         updateUI('Stopped');
                     };
                     
                     outputEl.innerHTML = '';
                     setAiButtonsState(false);
-                    updateUI('Recording...');
-                    mediaRecorder.start(timeSlice);
+                    updateUI('Recording...', 'Recording...');
+                    mediaRecorder.start(3000); // Slice audio every 3 seconds
                     
                     audioStream.getTracks()[0].onended = () => handleRecordingStop();
                 } else {
@@ -538,6 +541,7 @@
             if (audioStream) {
                 audioStream.getTracks().forEach(track => track.stop());
             }
+            updateUI('Stopped', 'Stopped');
         }
         
         function blobToBase64(blob) {
@@ -549,10 +553,35 @@
             });
         }
         
+        async function processTranscriptionQueue(force = false) {
+             if (isProcessingQueue && !force) return;
+             if (transcriptionQueue.length === 0) {
+                 if(mediaRecorder && mediaRecorder.state === "inactive") {
+                     updateUI('Transcription Complete', 'Transcription Complete');
+                     setAiButtonsState(true);
+                 }
+                 return;
+             }
+
+             isProcessingQueue = true;
+             const audioChunkBlob = transcriptionQueue.shift();
+             
+             try {
+                const base64Audio = await blobToBase64(audioChunkBlob);
+                await transcribeChunk(base64Audio);
+             } catch (error) {
+                console.error("Error processing chunk:", error);
+             } finally {
+                isProcessingQueue = false;
+                processTranscriptionQueue(); // Process next item in queue
+             }
+        }
+
+
         async function transcribeChunk(base64Audio) {
             const apiKey = getApiKey();
             if (!apiKey) {
-                handleRecordingStop(); // Stop recording if the key is suddenly missing
+                handleRecordingStop();
                 return;
             }
 
