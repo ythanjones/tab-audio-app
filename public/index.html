@@ -231,7 +231,7 @@
           storageBucket: "tab-audio-app.appspot.com",
           messagingSenderId: "715569829205",
           appId: "1:715569829205:web:216b98f170035f2fcf0bdc",
-          measurementId: "G-BDW8YWD1QW" // Add your measurement ID here
+          measurementId: "G-BDW8YWD1QW"
         };
         // -------------------------------------------------------------------
 
@@ -276,10 +276,8 @@
         let firebaseInitialized = false;
         let analytics;
         let recordingStartTime;
+        let recordingFeedbackInterval;
 
-        // --- Real-Time Transcription Queue ---
-        const transcriptionQueue = [];
-        let isProcessingQueue = false;
 
         // Initialize Firebase
         try {
@@ -423,12 +421,6 @@
             });
         }
         
-        function appendText(element, text) {
-             const textNode = document.createTextNode(text + " ");
-             element.appendChild(textNode);
-             element.scrollTop = element.scrollHeight;
-        }
-
         function getApiKey() {
             const sessionApiKey = apiKeyInput.value.trim();
             if (sessionApiKey) {
@@ -518,30 +510,41 @@
                     logEvent('recording_started', { user_id: currentUser ? currentUser.uid : 'anonymous' });
                     recordingStartTime = Date.now();
 
+                    const audioChunks = [];
                     mediaRecorder = new MediaRecorder(audioStream, { mimeType: 'audio/webm' });
                     
                     mediaRecorder.ondataavailable = (event) => {
-                        if (event.data.size > 0) {
-                           transcriptionQueue.push(event.data);
-                           processTranscriptionQueue();
-                        }
+                        if (event.data.size > 0) audioChunks.push(event.data);
                     };
 
-                    mediaRecorder.onstop = () => {
-                        processTranscriptionQueue(true);
+                    mediaRecorder.onstop = async () => {
                         const duration_seconds = Math.round((Date.now() - recordingStartTime) / 1000);
+                        if(audioChunks.length === 0) {
+                             logEvent('recording_stopped', { duration_seconds, final_word_count: 0 });
+                             updateUI('Stopped', 'No audio was recorded.');
+                             return;
+                        }
+
+                        updateUI('Transcribing...', 'Finalizing transcription...');
+                        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                        const base64String = await blobToBase64(audioBlob);
+                        await transcribeAudio(base64String);
+
                         const final_word_count = outputEl.textContent.trim().split(/\s+/).length;
                         logEvent('recording_stopped', { duration_seconds, final_word_count });
-                        updateUI('Transcription Complete', 'Transcription Complete');
-                        if (outputEl.textContent.trim().length > 0) {
-                           setAiButtonsState(true);
-                        }
                     };
                     
                     outputEl.innerHTML = '';
                     setAiButtonsState(false);
                     updateUI('Recording...', 'Recording...');
-                    mediaRecorder.start(3000); 
+                    mediaRecorder.start();
+
+                    // Visual feedback during recording
+                    let dotCount = 1;
+                    recordingFeedbackInterval = setInterval(() => {
+                        animateText(statusEl, "Recording" + ".".repeat(dotCount));
+                        dotCount = (dotCount % 3) + 1;
+                    }, 500);
                     
                     audioStream.getTracks()[0].onended = () => handleRecordingStop();
                 } else {
@@ -560,6 +563,7 @@
         }
         
         function handleRecordingStop() {
+            if (recordingFeedbackInterval) clearInterval(recordingFeedbackInterval);
             if (mediaRecorder && mediaRecorder.state === 'recording') {
                 mediaRecorder.stop();
             }
@@ -578,41 +582,12 @@
             });
         }
         
-        async function processTranscriptionQueue(force = false) {
-             if (isProcessingQueue && !force) return;
-             if (transcriptionQueue.length === 0) {
-                 isProcessingQueue = false;
-                 return;
-             }
-
-             isProcessingQueue = true;
-             const audioChunkBlob = transcriptionQueue.shift();
-             
-             try {
-                const startTime = Date.now();
-                const base64Audio = await blobToBase64(audioChunkBlob);
-                const success = await transcribeChunk(base64Audio);
-                const processing_time_ms = Date.now() - startTime;
-                logEvent('chunk_transcribed', { success, processing_time_ms });
-             } catch (error) {
-                logEvent('chunk_transcribed', { success: false, error_message: error.message });
-                console.error("Error processing chunk:", error);
-             } finally {
-                isProcessingQueue = false;
-                processTranscriptionQueue(); // Process next item in queue
-             }
-        }
-
-
-        async function transcribeChunk(base64Audio) {
+        async function transcribeAudio(base64Audio) {
             const apiKey = getApiKey();
-            if (!apiKey) {
-                handleRecordingStop();
-                return false;
-            }
+            if (!apiKey) return;
 
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-            const payload = { contents: [{ parts: [{ text: "Transcribe the following short audio clip." }, { inline_data: { mime_type: "audio/webm", data: base64Audio } }] }] };
+            const payload = { contents: [{ parts: [{ text: "Transcribe the following audio recording." }, { inline_data: { mime_type: "audio/webm", data: base64Audio } }] }] };
 
             try {
                 const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
@@ -623,17 +598,18 @@
                 
                 const result = await response.json();
                 if (result.candidates && result.candidates[0].content.parts[0].text) {
-                    const transcriptChunk = result.candidates[0].content.parts[0].text;
-                    appendText(outputEl, transcriptChunk);
-                    return true;
+                    const transcript = result.candidates[0].content.parts[0].text;
+                    animateText(outputEl, transcript, 20);
+                    updateUI('Transcription Complete', 'Transcription Complete');
+                    setAiButtonsState(true);
+                    logEvent('chunk_transcribed', { success: true });
+                } else {
+                    throw new Error('Invalid API response.');
                 }
-                return false; // No text returned
             } catch (err) {
-                 console.error(`Chunk transcription failed: ${err.message}`);
                  logEvent('transcription_failed', { error_code: 'CLIENT_SIDE', error_message: err.message });
-                 showError(`Real-time transcription failed. Check your API key. Recording stopped.`);
-                 handleRecordingStop();
-                 return false;
+                 showError(`Transcription Failed: ${err.message}`);
+                 updateUI('Transcription Failed', 'Transcription Failed');
             }
         }
 
@@ -690,7 +666,7 @@
         const aiButtonHandler = (promptFn, taskTitle) => () => {
             const transcript = outputEl.textContent;
             if (transcript) {
-                logEvent('ai_action_used', { action_type: taskTitle.toLowerCase().replace(' ', '_') });
+                logEvent('ai_action_used', { action_type: taskTitle.toLowerCase().replace(/\s/g, '_') });
                 generateTextWithGemini(promptFn(transcript), taskTitle);
             } else {
                 showError("There is no transcript to analyze.");
@@ -703,7 +679,7 @@
         
         modalClose.addEventListener('click', closeModal);
         
-        updateUI('Initial');
+        updateUI('Initial', 'Ready');
     </script>
 </body>
 </html>
