@@ -747,7 +747,7 @@
                 const userDocRef = doc(db, "users", currentUser.uid);
                 const docSnap = await getDoc(userDocRef);
                 if (docSnap.exists() && docSnap.data().geminiApiKey) {
-                    activeApiKey = docSnap.data().geminiApiKey;
+                    activeApiKey = docSnap.data().geminiApiKey; // Load the key into our active state
                     console.log("User API key loaded.");
                 } else {
                     activeApiKey = null;
