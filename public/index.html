@@ -150,6 +150,10 @@
             <!-- User Info / Logout Button -->
              <div id="userInfo" class="items-center gap-4">
                  <span id="userEmail" class="text-sm font-medium text-slate-600"></span>
+                 <!-- History Button -->
+                 <button id="historyButton" title="View History" class="text-slate-500 hover:text-blue-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+                 </button>
                  <!-- Settings Button -->
                  <a href="settings.html" title="Settings" class="text-slate-500 hover:text-blue-600">
                      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
@@ -186,14 +190,21 @@
 
         <!-- Transcription & AI Actions Section -->
         <div class="space-y-4 pt-8 border-t border-slate-200">
-            <!-- Transcription Output DIV, styled like a textarea -->
-            <div id="transcriptionOutput" class="w-full h-48 bg-slate-50 border border-slate-300 rounded-md p-4 text-slate-700 overflow-y-auto focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Transcription will appear here..."></div>
+            <div class="flex justify-between items-center">
+                 <!-- Transcription Output DIV, styled like a textarea -->
+                <div id="transcriptionOutput" class="w-full h-48 bg-slate-50 border border-slate-300 rounded-md p-4 text-slate-700 overflow-y-auto focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Transcription will appear here..."></div>
+                <button id="saveButton" class="ml-4 px-4 py-2 text-sm font-semibold text-white bg-green-600 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 btn-disabled" disabled title="Save Transcript">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                </button>
+            </div>
+
 
             <!-- AI Actions -->
-             <div id="aiActions" class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+             <div id="aiActions" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <button id="summarizeButton" class="w-full border border-slate-400 text-slate-500 font-semibold py-2 px-4 rounded-md transition-all duration-200 hover:bg-slate-500 hover:text-white btn-disabled" disabled>Summarize</button>
                 <button id="actionItemsButton" class="w-full border border-slate-400 text-slate-500 font-semibold py-2 px-4 rounded-md transition-all duration-200 hover:bg-slate-500 hover:text-white btn-disabled" disabled>Action Items</button>
                 <button id="extractTopicsButton" class="w-full border border-slate-400 text-slate-500 font-semibold py-2 px-4 rounded-md transition-all duration-200 hover:bg-slate-500 hover:text-white btn-disabled" disabled>Extract Topics</button>
+                <button id="cleanUpButton" class="w-full border border-slate-400 text-slate-500 font-semibold py-2 px-4 rounded-md transition-all duration-200 hover:bg-slate-500 hover:text-white btn-disabled" disabled>Clean Up</button>
              </div>
         </div>
     </div>
@@ -213,6 +224,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js";
         import { getAnalytics, logEvent as fbLogEvent } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-analytics.js";
+        import { getFirestore, collection, addDoc, query, where, getDocs, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-firestore.js";
         import { 
             getAuth, 
             onAuthStateChanged,
@@ -252,11 +264,14 @@
         const userInfo = document.getElementById('userInfo');
         const userEmailEl = document.getElementById('userEmail');
         const logoutButton = document.getElementById('logoutButton');
+        const historyButton = document.getElementById('historyButton');
+        const saveButton = document.getElementById('saveButton');
         
         // AI Action Buttons
         const summarizeButton = document.getElementById('summarizeButton');
         const actionItemsButton = document.getElementById('actionItemsButton');
         const extractTopicsButton = document.getElementById('extractTopicsButton');
+        const cleanUpButton = document.getElementById('cleanUpButton');
 
         const modalBackdrop = document.getElementById('modal-backdrop');
         const modalContent = document.getElementById('modal-content');
@@ -271,7 +286,7 @@
         let currentUser = null; 
         let activeContainer = null;
         let firebaseInitialized = false;
-        let analytics;
+        let analytics, db;
         let recordingStartTime;
         let recordingFeedbackInterval;
 
@@ -282,7 +297,8 @@
             }
             const app = initializeApp(firebaseConfig);
             const auth = getAuth(app);
-            analytics = getAnalytics(app); // Initialize Analytics
+            analytics = getAnalytics(app);
+            db = getFirestore(app);
             firebaseInitialized = true;
 
             onAuthStateChanged(auth, user => {
@@ -470,11 +486,13 @@
         }
 
         function setAiButtonsState(enabled) {
-            const buttons = [summarizeButton, actionItemsButton, extractTopicsButton];
+            const buttons = [summarizeButton, actionItemsButton, extractTopicsButton, cleanUpButton];
             buttons.forEach(button => {
                 button.disabled = !enabled;
                 button.classList.toggle('btn-disabled', !enabled);
             });
+            saveButton.disabled = !enabled;
+            saveButton.classList.toggle('btn-disabled', !enabled);
         }
         
         function updateUI(status, message = '') {
@@ -593,7 +611,7 @@
                 const result = await response.json();
                 if (result.candidates && result.candidates[0].content.parts[0].text) {
                     const transcript = result.candidates[0].content.parts[0].text;
-                    animateText(outputEl, transcript, 20);
+                    outputEl.textContent = transcript; // Use textContent for raw text
                     updateUI('Transcription Complete', 'Transcription Complete');
                     setAiButtonsState(true);
                     logEvent('chunk_transcribed', { success: true });
@@ -606,7 +624,6 @@
                  updateUI('Transcription Failed', 'Transcription Failed');
             }
         }
-
 
         async function generateTextWithGemini(prompt, taskTitle) {
             const apiKey = getApiKey();
@@ -623,7 +640,12 @@
                 
                  const result = await response.json();
                  if (result.candidates && result.candidates[0].content.parts[0].text) {
-                    animateText(modalBody, result.candidates[0].content.parts[0].text.replace(/\*/g, ''));
+                    const generatedText = result.candidates[0].content.parts[0].text.replace(/\*/g, '');
+                    animateText(modalBody, generatedText);
+                    // Also update the main text area if it's a "Clean Up" action
+                    if (taskTitle === 'Cleaned Up Transcript') {
+                        outputEl.textContent = generatedText;
+                    }
                  } else {
                     throw new Error('Invalid API response.');
                  }
@@ -631,6 +653,74 @@
                 modalBody.innerHTML = `<p class="text-red-600">Could not generate ${taskTitle.toLowerCase()}. Error: ${err.message}</p>`;
             }
         }
+        
+        async function saveTranscript() {
+            if (!currentUser) {
+                showError("You must be logged in to save a transcript.");
+                return;
+            }
+            const transcriptText = outputEl.textContent.trim();
+            if (!transcriptText) {
+                showError("There is no transcript to save.");
+                return;
+            }
+
+            try {
+                const docRef = await addDoc(collection(db, "users", currentUser.uid, "transcripts"), {
+                    title: transcriptText.substring(0, 40) + "...",
+                    content: transcriptText,
+                    createdAt: new Date()
+                });
+                logEvent('transcript_saved', { doc_id: docRef.id });
+                animateText(statusEl, "Transcript Saved!");
+            } catch (e) {
+                console.error("Error adding document: ", e);
+                showError("Could not save transcript. Please try again.");
+                logEvent('save_failed', { error: e.message });
+            }
+        }
+
+        async function viewHistory() {
+            if (!currentUser) {
+                showError("You must be logged in to view history.");
+                return;
+            }
+            
+            openModal("Transcript History", '<div class="flex justify-center items-center"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>');
+            
+            try {
+                const q = query(collection(db, "users", currentUser.uid, "transcripts"), orderBy("createdAt", "desc"), limit(20));
+                const querySnapshot = await getDocs(q);
+                
+                if (querySnapshot.empty) {
+                    modalBody.innerHTML = `<p class="text-slate-500">You have no saved transcripts.</p>`;
+                    return;
+                }
+
+                const list = document.createElement('ul');
+                list.className = 'space-y-2';
+                
+                querySnapshot.forEach((doc) => {
+                    const data = doc.data();
+                    const li = document.createElement('li');
+                    li.className = 'p-3 rounded-md hover:bg-slate-100 cursor-pointer';
+                    li.innerHTML = `<p class="font-semibold">${data.title}</p><p class="text-xs text-slate-500">${data.createdAt.toDate().toLocaleString()}</p>`;
+                    li.onclick = () => {
+                        outputEl.textContent = data.content;
+                        setAiButtonsState(true);
+                        closeModal();
+                    };
+                    list.appendChild(li);
+                });
+                modalBody.innerHTML = '';
+                modalBody.appendChild(list);
+
+            } catch(e) {
+                 console.error("Error fetching history: ", e);
+                 modalBody.innerHTML = `<p class="text-red-600">Could not load history.</p>`;
+            }
+        }
+
 
         function openModal(title, content) {
             modalTitle.textContent = title;
@@ -656,6 +746,8 @@
         // --- Event Listeners ---
         startButton.addEventListener('click', handleStartClick);
         stopButton.addEventListener('click', handleRecordingStop);
+        saveButton.addEventListener('click', saveTranscript);
+        historyButton.addEventListener('click', viewHistory);
 
         const aiButtonHandler = (promptFn, taskTitle) => () => {
             const transcript = outputEl.textContent;
@@ -670,6 +762,7 @@
         summarizeButton.addEventListener('click', aiButtonHandler(t => `Concisely summarize the following transcript:\n\n---\n${t}\n---`, "Summary"));
         actionItemsButton.addEventListener('click', aiButtonHandler(t => `List all action items from this transcript. If none, state that clearly:\n\n---\n${t}\n---`, "Action Items"));
         extractTopicsButton.addEventListener('click', aiButtonHandler(t => `Analyze the following transcript and extract the main topics or keywords discussed. Present them as a comma-separated list.\n\n---\n${t}\n---`, "Key Topics"));
+        cleanUpButton.addEventListener('click', aiButtonHandler(t => `Rewrite the following transcript to be more readable and professional. Remove all filler words like "um", "uh", and "ah", correct any grammatical errors, and format it into clean paragraphs. Do not summarize, just clean it up.\n\n---\n${t}\n---`, "Cleaned Up Transcript"));
         
         modalClose.addEventListener('click', closeModal);
         
