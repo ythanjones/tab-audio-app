@@ -213,6 +213,7 @@
     <script type="module">
         // Import the functions you need from the SDKs you need
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAnalytics, logEvent as fbLogEvent } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-analytics.js";
         import { 
             getAuth, 
             onAuthStateChanged,
@@ -229,7 +230,8 @@
           projectId: "tab-audio-app",
           storageBucket: "tab-audio-app.appspot.com",
           messagingSenderId: "715569829205",
-          appId: "1:715569829205:web:216b98f170035f2fcf0bdc"
+          appId: "1:715569829205:web:216b98f170035f2fcf0bdc",
+          measurementId: "G-BDW8YWD1QW" // Add your measurement ID here
         };
         // -------------------------------------------------------------------
 
@@ -272,6 +274,8 @@
         let currentUser = null; 
         let activeContainer = null;
         let firebaseInitialized = false;
+        let analytics;
+        let recordingStartTime;
 
         // --- Real-Time Transcription Queue ---
         const transcriptionQueue = [];
@@ -284,6 +288,7 @@
             }
             const app = initializeApp(firebaseConfig);
             const auth = getAuth(app);
+            analytics = getAnalytics(app); // Initialize Analytics
             firebaseInitialized = true;
 
             onAuthStateChanged(auth, user => {
@@ -309,10 +314,12 @@
 
                 try {
                     await signInWithEmailAndPassword(auth, email, password);
+                    logEvent('user_action', { action_type: 'login' });
                 } catch (error) {
                     if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
                         try {
                             await createUserWithEmailAndPassword(auth, email, password);
+                             logEvent('user_action', { action_type: 'signup' });
                         } catch (signUpError) {
                             showError(signUpError.message);
                         }
@@ -323,7 +330,9 @@
             }
         
             function handleLogout() {
-                signOut(auth).catch(error => showError(error.message));
+                signOut(auth).then(() => {
+                    logEvent('user_action', { action_type: 'logout' });
+                }).catch(error => showError(error.message));
             }
 
             loginButton.addEventListener('click', (e) => {
@@ -335,6 +344,14 @@
         } catch (error) {
             console.error("Firebase Initialization Error:", error.message);
             showError(error.message, true);
+        }
+
+        function logEvent(name, params) {
+            if (analytics) {
+                fbLogEvent(analytics, name, params);
+            } else {
+                console.log(`Analytics not initialized. Event not logged: ${name}`, params);
+            }
         }
 
         function closeContainer(container) {
@@ -434,6 +451,7 @@
                 const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
                 if (response.ok) {
                     animateText(statusEl, "API Key is valid.");
+                    logEvent('api_key_validated', { success: true });
                     hideError();
                     closeContainer(apiKeyContainer);
                 } else {
@@ -442,6 +460,7 @@
                 }
             } catch (err) {
                 console.error("API Key validation error:", err);
+                logEvent('api_key_validated', { success: false, error_message: err.message });
                 showError(`API Key validation failed: ${err.message}`);
                 animateText(statusEl, "Invalid API Key.");
             }
@@ -495,10 +514,13 @@
                 if (displayStream.getAudioTracks().length > 0) {
                     audioStream = new MediaStream(displayStream.getAudioTracks());
                     displayStream.getVideoTracks()[0].stop();
+                    
+                    logEvent('recording_started', { user_id: currentUser ? currentUser.uid : 'anonymous' });
+                    recordingStartTime = Date.now();
 
                     mediaRecorder = new MediaRecorder(audioStream, { mimeType: 'audio/webm' });
                     
-                    mediaRecorder.ondataavailable = async (event) => {
+                    mediaRecorder.ondataavailable = (event) => {
                         if (event.data.size > 0) {
                            transcriptionQueue.push(event.data);
                            processTranscriptionQueue();
@@ -506,7 +528,10 @@
                     };
 
                     mediaRecorder.onstop = () => {
-                        processTranscriptionQueue(true); // Process any remaining chunks
+                        processTranscriptionQueue(true);
+                        const duration_seconds = Math.round((Date.now() - recordingStartTime) / 1000);
+                        const final_word_count = outputEl.textContent.trim().split(/\s+/).length;
+                        logEvent('recording_stopped', { duration_seconds, final_word_count });
                         updateUI('Transcription Complete', 'Transcription Complete');
                         if (outputEl.textContent.trim().length > 0) {
                            setAiButtonsState(true);
@@ -516,7 +541,7 @@
                     outputEl.innerHTML = '';
                     setAiButtonsState(false);
                     updateUI('Recording...', 'Recording...');
-                    mediaRecorder.start(3000); // Slice audio every 3 seconds
+                    mediaRecorder.start(3000); 
                     
                     audioStream.getTracks()[0].onended = () => handleRecordingStop();
                 } else {
@@ -556,10 +581,7 @@
         async function processTranscriptionQueue(force = false) {
              if (isProcessingQueue && !force) return;
              if (transcriptionQueue.length === 0) {
-                 if(mediaRecorder && mediaRecorder.state === "inactive") {
-                     updateUI('Transcription Complete', 'Transcription Complete');
-                     setAiButtonsState(true);
-                 }
+                 isProcessingQueue = false;
                  return;
              }
 
@@ -567,9 +589,13 @@
              const audioChunkBlob = transcriptionQueue.shift();
              
              try {
+                const startTime = Date.now();
                 const base64Audio = await blobToBase64(audioChunkBlob);
-                await transcribeChunk(base64Audio);
+                const success = await transcribeChunk(base64Audio);
+                const processing_time_ms = Date.now() - startTime;
+                logEvent('chunk_transcribed', { success, processing_time_ms });
              } catch (error) {
+                logEvent('chunk_transcribed', { success: false, error_message: error.message });
                 console.error("Error processing chunk:", error);
              } finally {
                 isProcessingQueue = false;
@@ -582,7 +608,7 @@
             const apiKey = getApiKey();
             if (!apiKey) {
                 handleRecordingStop();
-                return;
+                return false;
             }
 
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
@@ -599,11 +625,15 @@
                 if (result.candidates && result.candidates[0].content.parts[0].text) {
                     const transcriptChunk = result.candidates[0].content.parts[0].text;
                     appendText(outputEl, transcriptChunk);
+                    return true;
                 }
+                return false; // No text returned
             } catch (err) {
                  console.error(`Chunk transcription failed: ${err.message}`);
+                 logEvent('transcription_failed', { error_code: 'CLIENT_SIDE', error_message: err.message });
                  showError(`Real-time transcription failed. Check your API key. Recording stopped.`);
                  handleRecordingStop();
+                 return false;
             }
         }
 
@@ -660,6 +690,7 @@
         const aiButtonHandler = (promptFn, taskTitle) => () => {
             const transcript = outputEl.textContent;
             if (transcript) {
+                logEvent('ai_action_used', { action_type: taskTitle.toLowerCase().replace(' ', '_') });
                 generateTextWithGemini(promptFn(transcript), taskTitle);
             } else {
                 showError("There is no transcript to analyze.");
