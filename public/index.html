@@ -22,10 +22,10 @@
             pointer-events: none;
         }
         /* Styles for the modal */
-        #modal-backdrop {
+        .modal-backdrop {
             transition: opacity 0.3s ease;
         }
-        #modal-content {
+        .modal-content {
             transition: transform 0.3s ease, opacity 0.3s ease;
         }
         
@@ -155,9 +155,9 @@
                     <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
                  </button>
                  <!-- Settings Button -->
-                 <a href="settings.html" title="Settings" class="text-slate-500 hover:text-blue-600">
+                 <button id="settingsButton" title="Settings" class="text-slate-500 hover:text-blue-600">
                      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-                 </a>
+                 </button>
                  <button id="logoutButton" class="text-slate-500 hover:text-red-600">
                      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
                  </button>
@@ -209,7 +209,7 @@
         </div>
     </div>
 
-    <!-- Modal for AI Results -->
+    <!-- Modal for AI Results & Settings -->
     <div id="modal-backdrop" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 hidden opacity-0">
         <div id="modal-content" class="bg-white rounded-lg shadow-xl w-full max-w-lg p-6 transform scale-95 opacity-0">
             <div class="flex justify-between items-center mb-4">
@@ -224,7 +224,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js";
         import { getAnalytics, logEvent as fbLogEvent } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-analytics.js";
-        import { getFirestore, collection, addDoc, query, where, getDocs, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, query, where, getDocs, orderBy, limit, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-firestore.js";
         import { 
             getAuth, 
             onAuthStateChanged,
@@ -265,6 +265,7 @@
         const userEmailEl = document.getElementById('userEmail');
         const logoutButton = document.getElementById('logoutButton');
         const historyButton = document.getElementById('historyButton');
+        const settingsButton = document.getElementById('settingsButton');
         const saveButton = document.getElementById('saveButton');
         
         // AI Action Buttons
@@ -284,6 +285,7 @@
         let audioStream;
         let animationTimeout;
         let currentUser = null; 
+        let userApiKey = null;
         let activeContainer = null;
         let firebaseInitialized = false;
         let analytics, db;
@@ -301,15 +303,17 @@
             db = getFirestore(app);
             firebaseInitialized = true;
 
-            onAuthStateChanged(auth, user => {
+            onAuthStateChanged(auth, async (user) => {
                 currentUser = user;
                 if (user) {
                     appContainer.classList.add('logged-in');
                     userEmailEl.textContent = user.email;
                     closeContainer(loginContainer);
+                    await fetchUserApiKey();
                 } else {
                     appContainer.classList.remove('logged-in');
                     userEmailEl.textContent = '';
+                    userApiKey = null;
                 }
             });
 
@@ -434,12 +438,16 @@
         }
         
         function getApiKey() {
+            if (currentUser && userApiKey) {
+                hideError();
+                return userApiKey;
+            }
             const sessionApiKey = apiKeyInput.value.trim();
             if (sessionApiKey) {
                  hideError();
                  return sessionApiKey;
             }
-            showError("Please provide a session API key by clicking the key icon.");
+            showError("Please log in and set your API key in settings, or provide a session key.");
             return null;
         }
 
@@ -458,6 +466,11 @@
                     logEvent('api_key_validated', { success: true });
                     hideError();
                     closeContainer(apiKeyContainer);
+                    if (currentUser) {
+                        await saveUserApiKey(key);
+                        userApiKey = key;
+                        animateText(statusEl, "API Key saved to your profile.");
+                    }
                 } else {
                     const error = await response.json();
                     throw new Error(error.error.message || `HTTP error! status: ${response.status}`);
@@ -720,6 +733,86 @@
                  modalBody.innerHTML = `<p class="text-red-600">Could not load history.</p>`;
             }
         }
+        
+        async function saveUserApiKey(key) {
+            if (!currentUser) return;
+            try {
+                const userDocRef = doc(db, "users", currentUser.uid);
+                await setDoc(userDocRef, { geminiApiKey: key }, { merge: true });
+                logEvent('api_key_saved');
+            } catch (e) {
+                console.error("Error saving API key: ", e);
+                showError("Could not save your API key.");
+            }
+        }
+
+        async function fetchUserApiKey() {
+            if (!currentUser) return;
+            try {
+                const userDocRef = doc(db, "users", currentUser.uid);
+                const docSnap = await getDoc(userDocRef);
+                if (docSnap.exists() && docSnap.data().geminiApiKey) {
+                    userApiKey = docSnap.data().geminiApiKey;
+                    console.log("User API key loaded.");
+                } else {
+                    userApiKey = null;
+                    console.log("No saved API key found for user.");
+                }
+            } catch (e) {
+                console.error("Error fetching API key: ", e);
+                userApiKey = null;
+            }
+        }
+        
+        function openSettingsModal() {
+            const settingsHtml = `
+                <div class="space-y-4">
+                     <div>
+                        <label for="modalApiKey" class="block text-sm font-medium text-slate-700">Your Gemini API Key</label>
+                        <div class="mt-1 relative rounded-md shadow-sm">
+                             <input type="password" id="modalApiKey" class="block w-full rounded-md border-slate-300 pr-10 focus:border-blue-500 focus:ring-blue-500 sm:text-sm" placeholder="Paste your API key here...">
+                             <div class="absolute inset-y-0 right-0 pr-3 flex items-center">
+                                <button id="revealApiKeyBtn" class="text-slate-400 hover:text-slate-600">
+                                     <svg id="eyeIcon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                                </button>
+                             </div>
+                        </div>
+                    </div>
+                    <div class="flex justify-end">
+                        <button id="saveApiKeyBtn" class="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                           Save Key
+                        </button>
+                    </div>
+                </div>
+            `;
+            openModal("User Settings", settingsHtml);
+            
+            const modalApiKeyInput = document.getElementById('modalApiKey');
+            const revealApiKeyBtn = document.getElementById('revealApiKeyBtn');
+            const saveApiKeyBtn = document.getElementById('saveApiKeyBtn');
+
+            if (userApiKey) {
+                modalApiKeyInput.value = userApiKey;
+            }
+
+            revealApiKeyBtn.addEventListener('click', () => {
+                const isPassword = modalApiKeyInput.type === 'password';
+                modalApiKeyInput.type = isPassword ? 'text' : 'password';
+            });
+            
+            const saveAndClose = () => {
+                 const newKey = modalApiKeyInput.value.trim();
+                 if (newKey) {
+                    validateApiKey(newKey, true); // true indicates it should be saved
+                 }
+                 closeModal();
+            };
+
+            saveApiKeyBtn.addEventListener('click', saveAndClose);
+            modalApiKeyInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') saveAndClose();
+            });
+        }
 
 
         function openModal(title, content) {
@@ -748,6 +841,7 @@
         stopButton.addEventListener('click', handleRecordingStop);
         saveButton.addEventListener('click', saveTranscript);
         historyButton.addEventListener('click', viewHistory);
+        settingsButton.addEventListener('click', openSettingsModal);
 
         const aiButtonHandler = (promptFn, taskTitle) => () => {
             const transcript = outputEl.textContent;
