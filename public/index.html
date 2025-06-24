@@ -132,7 +132,7 @@
             padding: 1rem;
             border: 1px solid #cbd5e1;
             border-radius: 0.5rem;
-            overflow: auto; /* Fix for scrollbar glitch */
+            overflow: auto; /* Prevent scrollbar glitch */
         }
         .flashcard-front { background-color: #f8fafc; }
         .flashcard-back { background-color: #f1f5f9; transform: rotateY(180deg); }
@@ -240,7 +240,7 @@
              <div class="pt-4 space-y-2">
                  <h3 class="text-sm font-semibold text-slate-500 uppercase tracking-wider">Learning Resource Generators</h3>
                  <div id="generatorActions" class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <button id="flashcardButton" data-prompt-id="generate_flashcards" class="ai-button w-full bg-teal-50 border border-teal-300 text-teal-700 font-semibold py-2 px-4 rounded-md transition-all duration-200 hover:bg-teal-100 btn-disabled" disabled>Generate Flashcards</button>
+                    <button data-prompt-id="generate_flashcards" class="ai-button w-full bg-teal-50 border border-teal-300 text-teal-700 font-semibold py-2 px-4 rounded-md transition-all duration-200 hover:bg-teal-100 btn-disabled" disabled>Generate Flashcards</button>
                  </div>
              </div>
         </div>
@@ -1089,6 +1089,7 @@
                         </div>
                     `;
                     modalBody.querySelector('#saveDeckBtn')?.addEventListener('click', () => saveDeck(savedDeck));
+                    showFeedbackUI(originalTranscript, originalPrompt, JSON.stringify(savedDeck), 'generate_flashcards');
                     return;
                 }
 
