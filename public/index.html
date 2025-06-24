@@ -4,9 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI-Powered Audio Transcriber</title>
-    <!-- Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Inter font -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -110,7 +108,7 @@
         .logged-in #loginContainer { display: none; }
         .logged-in #userInfo { display: flex; align-items: center; gap: 0.75rem; }
         .logged-in #apiKeyContainer { opacity: 0.4; pointer-events: none; }
-
+        
         /* Flashcard styles */
         .flashcard-container { perspective: 1000px; }
         .flashcard {
@@ -132,6 +130,7 @@
             padding: 1rem;
             border: 1px solid #cbd5e1;
             border-radius: 0.5rem;
+            overflow: hidden; /* Fix for scrollbar glitch */
         }
         .flashcard-front { background-color: #f8fafc; }
         .flashcard-back { background-color: #f1f5f9; transform: rotateY(180deg); }
@@ -139,12 +138,9 @@
 </head>
 <body class="bg-slate-200 text-slate-800 flex items-center justify-center min-h-screen p-4">
 
-    <!-- Main container for the application -->
     <div id="app-container" class="w-full max-w-3xl mx-auto p-8 bg-white rounded-md shadow-lg space-y-8 relative">
         
-        <!-- Top bar for icons -->
         <div class="absolute top-0 left-0 w-full flex justify-between items-start px-8 py-6">
-            <!-- API Key Icon and Input -->
             <div id="apiKeyContainer" class="interactive-icon-container">
                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-animated text-slate-500">
                     <circle cx="7" cy="12" r="4"></circle>
@@ -156,8 +152,7 @@
                 <input type="password" id="apiKeyInput" class="border-slate-300 rounded-md p-2 text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500" placeholder="Enter Session API Key...">
             </div>
 
-            <!-- Login Icon and Inputs -->
-             <div id="loginContainer" class="interactive-icon-container flex-row-reverse">
+            <div id="loginContainer" class="interactive-icon-container flex-row-reverse">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-animated icon-animated-user text-slate-500 transition-transform duration-300">
                     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
                     <circle cx="12" cy="7" r="4"></circle>
@@ -173,14 +168,11 @@
                 </div>
             </div>
 
-            <!-- User Info / Logout Button -->
-             <div id="userInfo" class="items-center gap-4">
+            <div id="userInfo" class="items-center gap-4">
                  <span id="userEmail" class="text-sm font-medium text-slate-700"></span>
-                 <!-- History Button -->
                  <button id="historyButton" title="View History" class="text-slate-500 hover:text-teal-600">
                     <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
                  </button>
-                 <!-- Settings Button -->
                  <button id="settingsButton" title="Settings" class="text-slate-500 hover:text-teal-600">
                      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
                  </button>
@@ -190,18 +182,15 @@
              </div>
         </div>
 
-        <!-- Header -->
         <div class="text-center pt-20">
             <h1 class="text-4xl font-semibold text-slate-800">YouTube Learning Assistant</h1>
         </div>
         
-        <!-- Error Message Display -->
         <div id="error-message" class="hidden bg-red-100 border border-red-300 text-red-800 px-4 py-3 rounded-lg" role="alert">
             <strong class="font-bold">Error:</strong>
             <span class="block sm:inline" id="error-text"></span>
         </div>
         
-        <!-- Controls & Status Section -->
         <div class="text-center space-y-4 pt-4">
              <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
                 <button id="startButton" class="w-full sm:w-auto bg-teal-600 text-white font-semibold py-2 px-6 rounded-md transition-all duration-200 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-opacity-75">
@@ -214,19 +203,16 @@
             <p class="text-sm text-slate-500 h-5">Status: <span id="status" class="font-semibold text-teal-600"></span></p>
         </div>
 
-        <!-- Transcription & AI Actions Section -->
         <div class="space-y-4 pt-8 border-t border-slate-200">
             <div class="flex justify-between items-center">
-                 <!-- Transcription Output DIV, styled like a textarea -->
-                <div id="transcriptionOutput" class="w-full h-48 bg-slate-100 border border-slate-300 rounded-md p-4 text-slate-800 overflow-y-auto focus:outline-none focus:ring-2 focus:ring-teal-500" placeholder="Transcription will appear here..."></div>
+                 <div id="transcriptionOutput" class="w-full h-48 bg-slate-100 border border-slate-300 rounded-md p-4 text-slate-800 overflow-y-auto focus:outline-none focus:ring-2 focus:ring-teal-500" placeholder="Transcription will appear here..."></div>
                 <button id="saveButton" class="ml-4 px-4 py-2 text-sm font-semibold text-white bg-green-600 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 btn-disabled" disabled title="Save Transcript">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
                 </button>
             </div>
 
 
-            <!-- AI Teacher Actions -->
-             <div class="pt-4 space-y-2">
+            <div class="pt-4 space-y-2">
                  <h3 class="text-sm font-semibold text-slate-500 uppercase tracking-wider">Teacher AI</h3>
                  <div id="aiActions" class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <button data-prompt-id="key_concepts" class="ai-button w-full border border-slate-300 text-slate-600 font-semibold py-2 px-4 rounded-md transition-all duration-200 hover:bg-slate-200 btn-disabled" disabled>Key Concepts</button>
@@ -235,7 +221,6 @@
                  </div>
              </div>
              
-             <!-- Learning Resource Generators -->
              <div class="pt-4 space-y-2">
                  <h3 class="text-sm font-semibold text-slate-500 uppercase tracking-wider">Learning Resource Generators</h3>
                  <div id="generatorActions" class="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -244,13 +229,11 @@
              </div>
         </div>
 
-        <!-- Debug Report Button -->
         <button id="debugButton" class="fixed bottom-4 right-4 bg-slate-700 text-white p-2 rounded-full shadow-lg hover:bg-slate-800 transition-colors" title="Generate Debug Report">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4.5l-2.7 5.4-5.4 2.7 5.4 2.7 2.7 5.4 2.7-5.4 5.4-2.7-5.4-2.7-2.7-5.4zM7 21l-4-4"/></svg>
         </button>
     </div>
 
-    <!-- Modal for AI Results & Settings -->
     <div id="modal-backdrop" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 hidden opacity-0">
         <div id="modal-content" class="bg-white rounded-lg shadow-xl w-full max-w-lg p-6 transform scale-95 opacity-0">
             <div class="flex justify-between items-center mb-4">
@@ -276,7 +259,6 @@
         </div>
     </div>
 
-    <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js";
         import { getAnalytics, logEvent as fbLogEvent } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-analytics.js";
@@ -1028,32 +1010,27 @@
 
                 if (outputEl.textContent.trim()) {
                     logEvent('ai_action_used', { action_type: promptId });
-                    generateTextWithGemini(promptTemplate, taskTitle, promptId);
+                    if (promptId === 'generate_flashcards') {
+                        generateFlashcards(promptTemplate);
+                    } else {
+                        generateTextWithGemini(promptTemplate, taskTitle, promptId);
+                    }
                 } else {
                     showError("There is no transcript to analyze.");
                 }
             });
         });
         
-        flashcardButton.addEventListener('click', () => {
-             const transcript = outputEl.textContent.trim();
-             if (transcript) {
-                 logEvent('ai_action_used', { action_type: 'generate_flashcards' });
-                 generateFlashcards(transcript);
-             } else {
-                 showError("There is no transcript to analyze.");
-             }
-        });
-
-        async function generateFlashcards(transcript) {
+        async function generateFlashcards(promptTemplate) {
             const apiKey = getApiKey();
             if(!apiKey) return;
             openModal("Generating Flashcards", '<div class="flex justify-center items-center"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div></div>');
 
-            const prompt = `Based on the following transcript, generate a JSON array of 5-10 flashcards. Each flashcard should be an object with a "front" (a question or term) and a "back" (the answer or definition). Make sure the output is only the raw JSON array and nothing else.\n\n---\n${transcript}\n---`;
+            const transcript = outputEl.textContent.trim();
+            const finalPrompt = promptTemplate.replace('{transcript}', transcript);
 
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-            const payload = { contents: [{ parts: [{ text: prompt }] }] };
+            const payload = { contents: [{ parts: [{ text: finalPrompt }] }] };
 
             try {
                  const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
@@ -1063,7 +1040,7 @@
                  if (result.candidates && result.candidates[0].content.parts[0].text) {
                     const jsonText = result.candidates[0].content.parts[0].text.replace(/```json|```/g, '').trim();
                     const flashcards = JSON.parse(jsonText);
-                    openFlashcardModal(flashcards, transcript, prompt);
+                    openFlashcardModal(flashcards, transcript, finalPrompt);
                  } else {
                     throw new Error('Invalid API response.');
                  }
@@ -1088,10 +1065,10 @@
                         <div class="text-center p-4">
                             <h3 class="text-lg font-semibold">Deck Complete!</h3>
                             <p class="text-slate-600 mt-2">${savedDeck.length} card(s) have been added to your new deck.</p>
-                            <button id="saveDeckBtn" class="mt-4 px-4 py-2 text-sm font-semibold text-white bg-green-600 rounded-md hover:bg-green-700">Save Deck to History</button>
+                            <button id="saveDeckBtn" class="mt-4 px-4 py-2 text-sm font-semibold text-white bg-green-600 rounded-md hover:bg-green-700 ${savedDeck.length === 0 ? 'hidden' : ''}">Save Deck to History</button>
                         </div>
                     `;
-                    modalBody.querySelector('#saveDeckBtn').onclick = () => saveDeck(savedDeck);
+                    modalBody.querySelector('#saveDeckBtn')?.addEventListener('click', () => saveDeck(savedDeck));
                     return;
                 }
 
