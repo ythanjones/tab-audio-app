@@ -14,6 +14,7 @@
         /* Apply Inter font to the body */
         body {
             font-family: 'Inter', sans-serif;
+            background-color: #e0e5e9; /* Muted, off-white background */
         }
         /* Custom styles for disabled button state */
         .btn-disabled {
@@ -87,7 +88,7 @@
         }
         .login-input {
             padding: 0.5rem;
-            border: 1px solid #e2e8f0; /* slate-200 */
+            border: 1px solid #cbd5e1; /* slate-300 */
             border-radius: 0.375rem; /* rounded-md */
             background-color: #f8fafc; /* slate-50 */
             width: 100%;
@@ -111,51 +112,51 @@
         .logged-in #apiKeyContainer { opacity: 0.4; pointer-events: none; }
     </style>
 </head>
-<body class="bg-slate-100 text-slate-800 flex items-center justify-center min-h-screen p-4">
+<body class="bg-slate-200 text-slate-800 flex items-center justify-center min-h-screen p-4">
 
     <!-- Main container for the application -->
-    <div id="app-container" class="w-full max-w-3xl mx-auto p-8 bg-white rounded-lg border border-slate-200 shadow-sm space-y-8 relative">
+    <div id="app-container" class="w-full max-w-3xl mx-auto p-8 bg-white rounded-md shadow-lg space-y-8 relative">
         
         <!-- Top bar for icons -->
         <div class="absolute top-0 left-0 w-full flex justify-between items-start px-8 py-6">
             <!-- API Key Icon and Input -->
             <div id="apiKeyContainer" class="interactive-icon-container">
-                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-animated text-slate-400">
+                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-animated text-slate-500">
                     <circle cx="7" cy="12" r="4"></circle>
                     <line x1="11" y1="12" x2="22" y2="12"></line>
                     <line x1="14" y1="12" x2="14" y2="16"></line>
                     <line x1="17" y1="12" x2="17" y2="18"></line>
                     <line x1="20" y1="12" x2="20" y2="15"></line>
                 </svg>
-                <input type="password" id="apiKeyInput" class="border-slate-300 rounded-md p-2 text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Enter Session API Key...">
+                <input type="password" id="apiKeyInput" class="border-slate-300 rounded-md p-2 text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500" placeholder="Enter Session API Key...">
             </div>
 
             <!-- Login Icon and Inputs -->
              <div id="loginContainer" class="interactive-icon-container flex-row-reverse">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-animated icon-animated-user text-slate-400 transition-transform duration-300">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-animated icon-animated-user text-slate-500 transition-transform duration-300">
                     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
                     <circle cx="12" cy="7" r="4"></circle>
                 </svg>
                 <div id="login-form" class="flex flex-col">
-                    <input type="email" id="emailInput" class="login-input text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Email">
+                    <input type="email" id="emailInput" class="login-input text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" placeholder="Email">
                     <div id="password-wrapper" class="login-form-extra">
-                        <input type="password" id="passwordInput" class="login-input text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Password">
+                        <input type="password" id="passwordInput" class="login-input text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" placeholder="Password">
                     </div>
                      <div id="auth-buttons" class="login-form-extra space-y-2">
-                        <button id="loginButton" class="w-full text-sm bg-blue-600 text-white py-1.5 rounded-md">Login / Sign Up</button>
+                        <button id="loginButton" class="w-full text-sm bg-teal-600 text-white py-1.5 rounded-md hover:bg-teal-700">Login / Sign Up</button>
                     </div>
                 </div>
             </div>
 
             <!-- User Info / Logout Button -->
              <div id="userInfo" class="items-center gap-4">
-                 <span id="userEmail" class="text-sm font-medium text-slate-600"></span>
+                 <span id="userEmail" class="text-sm font-medium text-slate-700"></span>
                  <!-- History Button -->
-                 <button id="historyButton" title="View History" class="text-slate-500 hover:text-blue-600">
+                 <button id="historyButton" title="View History" class="text-slate-500 hover:text-teal-600">
                     <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
                  </button>
                  <!-- Settings Button -->
-                 <button id="settingsButton" title="Settings" class="text-slate-500 hover:text-blue-600">
+                 <button id="settingsButton" title="Settings" class="text-slate-500 hover:text-teal-600">
                      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
                  </button>
                  <button id="logoutButton" class="text-slate-500 hover:text-red-600">
@@ -166,7 +167,7 @@
 
         <!-- Header -->
         <div class="text-center pt-20">
-            <h1 class="text-4xl font-semibold text-slate-900">Audio Transcriber</h1>
+            <h1 class="text-4xl font-semibold text-slate-800">Audio Transcriber</h1>
         </div>
         
         <!-- Error Message Display -->
@@ -178,21 +179,21 @@
         <!-- Controls & Status Section -->
         <div class="text-center space-y-4 pt-4">
              <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
-                <button id="startButton" class="w-full sm:w-auto border border-blue-600 text-blue-600 font-semibold py-2 px-6 rounded-md transition-all duration-200 hover:bg-blue-600 hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-75">
+                <button id="startButton" class="w-full sm:w-auto bg-teal-600 text-white font-semibold py-2 px-6 rounded-md transition-all duration-200 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-opacity-75">
                     Start Recording
                 </button>
-                <button id="stopButton" class="w-full sm:w-auto border border-slate-400 text-slate-500 font-semibold py-2 px-6 rounded-md transition-all duration-200 hover:bg-slate-500 hover:text-white focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-opacity-75 btn-disabled" disabled>
+                <button id="stopButton" class="w-full sm:w-auto border border-slate-300 text-slate-600 font-semibold py-2 px-6 rounded-md transition-all duration-200 hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-opacity-75 btn-disabled" disabled>
                     Stop Recording
                 </button>
             </div>
-            <p class="text-sm text-slate-500 h-5">Status: <span id="status" class="font-semibold text-blue-600"></span></p>
+            <p class="text-sm text-slate-500 h-5">Status: <span id="status" class="font-semibold text-teal-600"></span></p>
         </div>
 
         <!-- Transcription & AI Actions Section -->
         <div class="space-y-4 pt-8 border-t border-slate-200">
             <div class="flex justify-between items-center">
                  <!-- Transcription Output DIV, styled like a textarea -->
-                <div id="transcriptionOutput" class="w-full h-48 bg-slate-50 border border-slate-300 rounded-md p-4 text-slate-700 overflow-y-auto focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Transcription will appear here..."></div>
+                <div id="transcriptionOutput" class="w-full h-48 bg-slate-100 border border-slate-300 rounded-md p-4 text-slate-800 overflow-y-auto focus:outline-none focus:ring-2 focus:ring-teal-500" placeholder="Transcription will appear here..."></div>
                 <button id="saveButton" class="ml-4 px-4 py-2 text-sm font-semibold text-white bg-green-600 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 btn-disabled" disabled title="Save Transcript">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
                 </button>
@@ -201,12 +202,17 @@
 
             <!-- AI Actions -->
              <div id="aiActions" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <button id="summarizeButton" class="w-full border border-slate-400 text-slate-500 font-semibold py-2 px-4 rounded-md transition-all duration-200 hover:bg-slate-500 hover:text-white btn-disabled" disabled>Summarize</button>
-                <button id="actionItemsButton" class="w-full border border-slate-400 text-slate-500 font-semibold py-2 px-4 rounded-md transition-all duration-200 hover:bg-slate-500 hover:text-white btn-disabled" disabled>Action Items</button>
-                <button id="extractTopicsButton" class="w-full border border-slate-400 text-slate-500 font-semibold py-2 px-4 rounded-md transition-all duration-200 hover:bg-slate-500 hover:text-white btn-disabled" disabled>Extract Topics</button>
-                <button id="cleanUpButton" class="w-full border border-slate-400 text-slate-500 font-semibold py-2 px-4 rounded-md transition-all duration-200 hover:bg-slate-500 hover:text-white btn-disabled" disabled>Clean Up</button>
+                <button id="summarizeButton" class="w-full border border-slate-300 text-slate-600 font-semibold py-2 px-4 rounded-md transition-all duration-200 hover:bg-slate-200 btn-disabled" disabled>Summarize</button>
+                <button id="actionItemsButton" class="w-full border border-slate-300 text-slate-600 font-semibold py-2 px-4 rounded-md transition-all duration-200 hover:bg-slate-200 btn-disabled" disabled>Action Items</button>
+                <button id="extractTopicsButton" class="w-full border border-slate-300 text-slate-600 font-semibold py-2 px-4 rounded-md transition-all duration-200 hover:bg-slate-200 btn-disabled" disabled>Extract Topics</button>
+                <button id="cleanUpButton" class="w-full border border-slate-300 text-slate-600 font-semibold py-2 px-4 rounded-md transition-all duration-200 hover:bg-slate-200 btn-disabled" disabled>Clean Up</button>
              </div>
         </div>
+
+        <!-- Debug Report Button -->
+        <button id="debugButton" class="fixed bottom-4 right-4 bg-slate-700 text-white p-2 rounded-full shadow-lg hover:bg-slate-800 transition-colors" title="Generate Debug Report">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4.5l-2.7 5.4-5.4 2.7 5.4 2.7 2.7 5.4 2.7-5.4 5.4-2.7-5.4-2.7-2.7-5.4zM7 21l-4-4"/></svg>
+        </button>
     </div>
 
     <!-- Modal for AI Results & Settings -->
@@ -244,6 +250,31 @@
             measurementId: "G-BDW8YWD1QW"
         };
 
+        // --- Diagnostics & Logging System ---
+        const sessionLog = [];
+        const originalConsoleLog = console.log;
+        const originalConsoleError = console.error;
+
+        console.log = function(...args) {
+            sessionLog.push({ timestamp: new Date().toISOString(), level: 'LOG', message: args.join(' ') });
+            originalConsoleLog.apply(console, args);
+        };
+
+        console.error = function(...args) {
+            sessionLog.push({ timestamp: new Date().toISOString(), level: 'ERROR', message: args.join(' ') });
+            originalConsoleError.apply(console, args);
+        };
+
+        function logEvent(name, params) {
+            sessionLog.push({ timestamp: new Date().toISOString(), level: 'EVENT', name, params });
+            if (analytics) {
+                fbLogEvent(analytics, name, params);
+            } else {
+                console.log(`Analytics not initialized. Event not logged: ${name}`, params);
+            }
+        }
+        // --- End Diagnostics ---
+
         // DOM element references
         const appContainer = document.getElementById('app-container');
         const startButton = document.getElementById('startButton');
@@ -267,6 +298,7 @@
         const historyButton = document.getElementById('historyButton');
         const settingsButton = document.getElementById('settingsButton');
         const saveButton = document.getElementById('saveButton');
+        const debugButton = document.getElementById('debugButton');
         
         // AI Action Buttons
         const summarizeButton = document.getElementById('summarizeButton');
@@ -285,7 +317,7 @@
         let audioStream;
         let animationTimeout;
         let currentUser = null; 
-        let activeApiKey = null; // Single source of truth for the API key being used
+        let activeApiKey = null;
         let activeContainer = null;
         let firebaseInitialized = false;
         let analytics, db;
@@ -302,6 +334,7 @@
             analytics = getAnalytics(app);
             db = getFirestore(app);
             firebaseInitialized = true;
+            console.log("Firebase initialized successfully.");
 
             onAuthStateChanged(auth, async (user) => {
                 currentUser = user;
@@ -313,7 +346,7 @@
                 } else {
                     appContainer.classList.remove('logged-in');
                     userEmailEl.textContent = '';
-                    activeApiKey = null; // Clear key on logout
+                    activeApiKey = null;
                 }
             });
 
@@ -359,15 +392,7 @@
             console.error("Firebase Initialization Error:", error.message);
             showError(error.message, true);
         }
-
-        function logEvent(name, params) {
-            if (analytics) {
-                fbLogEvent(analytics, name, params);
-            } else {
-                console.log(`Analytics not initialized. Event not logged: ${name}`, params);
-            }
-        }
-
+        
         function closeContainer(container) {
             if (!container || !container.classList.contains('is-active')) return;
 
@@ -457,7 +482,7 @@
             try {
                 const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
                 if (response.ok) {
-                    activeApiKey = key; // Set the single source of truth for the API key
+                    activeApiKey = key;
                     animateText(statusEl, "API Key is valid.");
                     logEvent('api_key_validated', { success: true });
                     hideError();
@@ -485,6 +510,7 @@
             if(isCritical) {
                 errorDisplay.classList.add('bg-red-200', 'border-red-500', 'text-red-900', 'p-4', 'font-bold');
             }
+            console.error(message);
         }
 
         function hideError() {
@@ -622,7 +648,7 @@
                     outputEl.textContent = transcript; // Use textContent for raw text
                     updateUI('Transcription Complete', 'Transcription Complete');
                     setAiButtonsState(true);
-                    logEvent('chunk_transcribed', { success: true });
+                    logEvent('transcription_successful');
                 } else {
                     throw new Error('Invalid API response.');
                 }
@@ -637,7 +663,7 @@
             const apiKey = getApiKey();
             if (!apiKey) return;
 
-            openModal(taskTitle, '<div class="flex justify-center items-center"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>');
+            openModal(taskTitle, '<div class="flex justify-center items-center"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div></div>');
             
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
             const payload = { contents: [{ parts: [{ text: prompt }] }] };
@@ -694,7 +720,7 @@
                 return;
             }
             
-            openModal("Transcript History", '<div class="flex justify-center items-center"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>');
+            openModal("Transcript History", '<div class="flex justify-center items-center"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div></div>');
             
             try {
                 const q = query(collection(db, "users", currentUser.uid, "transcripts"), orderBy("createdAt", "desc"), limit(20));
@@ -765,7 +791,7 @@
                      <div>
                         <label for="modalApiKey" class="block text-sm font-medium text-slate-700">Your Gemini API Key</label>
                         <div class="mt-1 relative rounded-md shadow-sm">
-                             <input type="password" id="modalApiKey" class="block w-full rounded-md border-slate-300 pr-10 focus:border-blue-500 focus:ring-blue-500 sm:text-sm" placeholder="Paste your API key here...">
+                             <input type="password" id="modalApiKey" class="block w-full rounded-md border-slate-300 pr-10 focus:border-teal-500 focus:ring-teal-500 sm:text-sm" placeholder="Paste your API key here...">
                              <div class="absolute inset-y-0 right-0 pr-3 flex items-center">
                                 <button id="revealApiKeyBtn" class="text-slate-400 hover:text-slate-600">
                                      <svg id="eyeIcon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
@@ -774,7 +800,7 @@
                         </div>
                     </div>
                     <div class="flex justify-end">
-                        <button id="saveApiKeyBtn" class="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                        <button id="saveApiKeyBtn" class="px-4 py-2 text-sm font-semibold text-white bg-teal-600 rounded-md hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500">
                            Save Key
                         </button>
                     </div>
@@ -808,6 +834,30 @@
                 if (e.key === 'Enter') saveAndClose();
             });
         }
+        
+        function openDebugModal() {
+             const reportHtml = `<pre class="bg-slate-800 text-white p-4 rounded-md text-xs whitespace-pre-wrap overflow-auto">${JSON.stringify(sessionLog, null, 2)}</pre>
+                <button id="copyLogBtn" class="mt-4 px-4 py-2 text-sm font-semibold text-white bg-teal-600 rounded-md hover:bg-teal-700">Copy to Clipboard</button>
+            `;
+            openModal("Session Debug Log", reportHtml);
+            
+            document.getElementById('copyLogBtn').addEventListener('click', () => {
+                const logText = JSON.stringify(sessionLog, null, 2);
+                const textArea = document.createElement("textarea");
+                textArea.value = logText;
+                document.body.appendChild(textArea);
+                textArea.select();
+                try {
+                   document.execCommand('copy');
+                   animateText(statusEl, "Log copied!");
+                } catch(err) {
+                   console.error('Failed to copy log', err);
+                   showError("Failed to copy log.");
+                }
+                document.body.removeChild(textArea);
+                closeModal();
+            });
+        }
 
 
         function openModal(title, content) {
@@ -837,6 +887,7 @@
         saveButton.addEventListener('click', saveTranscript);
         historyButton.addEventListener('click', viewHistory);
         settingsButton.addEventListener('click', openSettingsModal);
+        debugButton.addEventListener('click', openDebugModal);
 
         const aiButtonHandler = (promptFn, taskTitle) => () => {
             const transcript = outputEl.textContent;
