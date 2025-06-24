@@ -132,7 +132,7 @@
             padding: 1rem;
             border: 1px solid #cbd5e1;
             border-radius: 0.5rem;
-            overflow: auto; /* Prevent scrollbar glitch */
+            overflow: auto; /* Fix for scrollbar glitch */
         }
         .flashcard-front { background-color: #f8fafc; }
         .flashcard-back { background-color: #f1f5f9; transform: rotateY(180deg); }
@@ -941,6 +941,8 @@
             const detailedFeedbackContainer = document.getElementById('detailed-feedback-container');
             const detailedFeedbackInput = document.getElementById('detailed-feedback-input');
             const submitDetailedFeedbackBtn = document.getElementById('submit-detailed-feedback');
+            
+            detailedFeedbackContainer.classList.add('hidden'); // Reset detailed view
             
             let rating = '';
 
