@@ -14,7 +14,6 @@
         /* Apply Inter font to the body */
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #e0e5e9; /* Muted, off-white background */
         }
         /* Custom styles for disabled button state */
         .btn-disabled {
@@ -71,7 +70,7 @@
         #apiKeyContainer.is-active #apiKeyInput {
             width: 240px;
             opacity: 1;
-            padding: 0.5rem;
+            padding: 0.5rem 0.75rem; /* Increased padding */
             border-width: 1px;
         }
 
@@ -387,6 +386,16 @@
                 handleAuth();
             });
             logoutButton.addEventListener('click', handleLogout);
+            
+            // Add Enter key listener for login/signup
+            [emailInput, passwordInput].forEach(input => {
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAuth();
+                    }
+                });
+            });
 
         } catch (error) {
             console.error("Firebase Initialization Error:", error.message);
