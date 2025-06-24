@@ -110,6 +110,31 @@
         .logged-in #loginContainer { display: none; }
         .logged-in #userInfo { display: flex; align-items: center; gap: 0.75rem; }
         .logged-in #apiKeyContainer { opacity: 0.4; pointer-events: none; }
+
+        /* Flashcard styles */
+        .flashcard-container { perspective: 1000px; }
+        .flashcard {
+            width: 100%;
+            height: 200px;
+            position: relative;
+            transform-style: preserve-3d;
+            transition: transform 0.6s;
+        }
+        .flashcard.is-flipped { transform: rotateY(180deg); }
+        .flashcard-face {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            border: 1px solid #cbd5e1;
+            border-radius: 0.5rem;
+        }
+        .flashcard-front { background-color: #f8fafc; }
+        .flashcard-back { background-color: #f1f5f9; transform: rotateY(180deg); }
     </style>
 </head>
 <body class="bg-slate-200 text-slate-800 flex items-center justify-center min-h-screen p-4">
@@ -214,7 +239,7 @@
              <div class="pt-4 space-y-2">
                  <h3 class="text-sm font-semibold text-slate-500 uppercase tracking-wider">Learning Resource Generators</h3>
                  <div id="generatorActions" class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <button id="flashcardButton" class="ai-button w-full bg-teal-50 border border-teal-300 text-teal-700 font-semibold py-2 px-4 rounded-md transition-all duration-200 hover:bg-teal-100 btn-disabled" disabled>Generate Flashcards</button>
+                    <button id="flashcardButton" data-prompt-id="generate_flashcards" class="ai-button w-full bg-teal-50 border border-teal-300 text-teal-700 font-semibold py-2 px-4 rounded-md transition-all duration-200 hover:bg-teal-100 btn-disabled" disabled>Generate Flashcards</button>
                  </div>
              </div>
         </div>
@@ -243,6 +268,10 @@
                         <svg class="w-6 h-6 text-red-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M7.864 4.5c.806 0 1.533.424 2.031 1.08a9.041 9.041 0 012.861 2.4c.723-.384 1.35-.956 1.653-1.715a4.498 4.498 0 00.322-1.672V3a.75.75 0 01.75-.75A2.25 2.25 0 0116.5 4.5c0 1.152-.26 2.243-.723 3.218-.266.558.107 1.282.725 1.282h3.126c1.026 0 1.945.694 2.054 1.715.045.422.068.85.068 1.285a11.95 11.95 0 01-2.649 7.521c-.388.482-.987.729-1.605.729H13.48c-.483 0-.964-.078-1.423-.23l-3.114-1.04a4.501 4.501 0 00-1.423-.23H5.904M7.864 4.5L6 6.375v11.25c0 .621-.504 1.125-1.125 1.125H3.388c-.621 0-1.125-.504-1.125-1.125V6.375L6 4.5" /></svg>
                     </button>
                 </div>
+                <div id="detailed-feedback-container" class="mt-2 hidden">
+                     <textarea id="detailed-feedback-input" class="w-full text-sm border-slate-300 rounded-md" placeholder="Optional: Why was this unhelpful?"></textarea>
+                     <button id="submit-detailed-feedback" class="mt-2 text-xs bg-slate-600 text-white px-2 py-1 rounded-md">Submit Feedback</button>
+                </div>
             </div>
         </div>
     </div>
@@ -251,7 +280,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js";
         import { getAnalytics, logEvent as fbLogEvent } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-analytics.js";
-        import { getFirestore, collection, addDoc, query, getDocs, orderBy, limit, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, query, getDocs, orderBy, limit, doc, setDoc, getDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-firestore.js";
         import { 
             getAuth, 
             onAuthStateChanged,
@@ -697,7 +726,7 @@
             const apiKey = getApiKey();
             if (!apiKey) return;
             
-            modalFeedback.classList.add('hidden'); // Hide feedback from previous uses
+            modalFeedback.classList.add('hidden');
             openModal(taskTitle, '<div class="flex justify-center items-center"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div></div>');
             
             const transcript = outputEl.textContent;
@@ -738,7 +767,7 @@
                 const docRef = await addDoc(collection(db, "users", currentUser.uid, "transcripts"), {
                     title: transcriptText.substring(0, 40) + "...",
                     content: transcriptText,
-                    createdAt: new Date()
+                    createdAt: serverTimestamp()
                 });
                 logEvent('transcript_saved', { doc_id: docRef.id });
                 animateText(statusEl, "Transcript Saved!");
@@ -773,7 +802,7 @@
                     const data = doc.data();
                     const li = document.createElement('li');
                     li.className = 'p-3 rounded-md hover:bg-slate-100 cursor-pointer';
-                    li.innerHTML = `<p class="font-semibold">${data.title}</p><p class="text-xs text-slate-500">${data.createdAt.toDate().toLocaleString()}</p>`;
+                    li.innerHTML = `<p class="font-semibold">${data.title}</p><p class="text-xs text-slate-500">${data.createdAt ? data.createdAt.toDate().toLocaleString() : 'Date not available'}</p>`;
                     li.onclick = () => {
                         outputEl.textContent = data.content;
                         setAiButtonsState(true);
@@ -911,32 +940,44 @@
         function showFeedbackUI(transcript, prompt, response, promptId) {
             modalFeedback.classList.remove('hidden');
             const feedbackButtons = modalFeedback.querySelectorAll('.feedback-btn');
+            const detailedFeedbackContainer = document.getElementById('detailed-feedback-container');
+            const detailedFeedbackInput = document.getElementById('detailed-feedback-input');
+            const submitDetailedFeedbackBtn = document.getElementById('submit-detailed-feedback');
             
+            let rating = '';
+
             const feedbackHandler = async (e) => {
-                const rating = e.currentTarget.dataset.rating;
-                
-                // Save feedback to Firestore
-                try {
+                rating = e.currentTarget.dataset.rating;
+                if(rating === 'negative') {
+                    detailedFeedbackContainer.classList.remove('hidden');
+                } else {
+                    await saveFeedback();
+                }
+            };
+            
+            const saveFeedback = async (detailedText = '') => {
+                 try {
                     await addDoc(collection(db, "feedback"), {
                         userId: currentUser ? currentUser.uid : 'anonymous',
                         promptId: promptId,
                         rating: rating,
+                        detailedFeedback: detailedText,
                         transcript: transcript,
                         prompt: prompt,
                         response: response,
-                        createdAt: new Date()
+                        createdAt: serverTimestamp()
                     });
-                     logEvent('prompt_feedback', { prompt_id: promptId, rating: rating });
+                     logEvent('prompt_feedback', { prompt_id: promptId, rating: rating, has_detailed_text: !!detailedText });
                 } catch(err) {
                     console.error("Error saving feedback:", err);
                     logEvent('feedback_save_failed', { error: err.message });
                 }
-                
                 modalFeedback.innerHTML = '<p class="text-sm text-slate-500">Thank you for your feedback!</p>';
             };
 
+            submitDetailedFeedbackBtn.onclick = () => saveFeedback(detailedFeedbackInput.value);
+
             feedbackButtons.forEach(button => {
-                // Clone and replace to remove old listeners
                 const newButton = button.cloneNode(true);
                 button.parentNode.replaceChild(newButton, button);
                 newButton.addEventListener('click', feedbackHandler);
@@ -1022,7 +1063,7 @@
                  if (result.candidates && result.candidates[0].content.parts[0].text) {
                     const jsonText = result.candidates[0].content.parts[0].text.replace(/```json|```/g, '').trim();
                     const flashcards = JSON.parse(jsonText);
-                    openFlashcardModal(flashcards);
+                    openFlashcardModal(flashcards, transcript, prompt);
                  } else {
                     throw new Error('Invalid API response.');
                  }
@@ -1031,16 +1072,30 @@
             }
         }
 
-        function openFlashcardModal(cards) {
+        function openFlashcardModal(cards, originalTranscript, originalPrompt) {
              if (!cards || cards.length === 0) {
                 modalBody.innerHTML = `<p class="text-slate-500">No flashcards were generated.</p>`;
                 return;
              }
              
+             let generatedDeck = [...cards];
+             let savedDeck = [];
              let currentIndex = 0;
              
              const updateCardView = () => {
-                const card = cards[currentIndex];
+                if(currentIndex >= generatedDeck.length) {
+                    modalBody.innerHTML = `
+                        <div class="text-center p-4">
+                            <h3 class="text-lg font-semibold">Deck Complete!</h3>
+                            <p class="text-slate-600 mt-2">${savedDeck.length} card(s) have been added to your new deck.</p>
+                            <button id="saveDeckBtn" class="mt-4 px-4 py-2 text-sm font-semibold text-white bg-green-600 rounded-md hover:bg-green-700">Save Deck to History</button>
+                        </div>
+                    `;
+                    modalBody.querySelector('#saveDeckBtn').onclick = () => saveDeck(savedDeck);
+                    return;
+                }
+
+                const card = generatedDeck[currentIndex];
                 modalBody.innerHTML = `
                     <div class="flashcard-container mb-4">
                         <div class="flashcard cursor-pointer">
@@ -1053,31 +1108,55 @@
                         </div>
                     </div>
                     <div class="flex justify-between items-center">
-                        <button id="prevCard" class="p-2 rounded-full hover:bg-slate-200 transition-colors ${currentIndex === 0 ? 'invisible' : ''}"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
-                        <span class="text-sm text-slate-500">${currentIndex + 1} / ${cards.length}</span>
-                        <button id="nextCard" class="p-2 rounded-full hover:bg-slate-200 transition-colors ${currentIndex === cards.length - 1 ? 'invisible' : ''}"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></button>
+                        <button id="discardCardBtn" class="p-2 rounded-full hover:bg-red-100" title="Discard"><svg class="w-8 h-8 text-red-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M7.864 4.5c.806 0 1.533.424 2.031 1.08a9.041 9.041 0 012.861 2.4c.723-.384 1.35-.956 1.653-1.715a4.498 4.498 0 00.322-1.672V3a.75.75 0 01.75-.75A2.25 2.25 0 0116.5 4.5c0 1.152-.26 2.243-.723 3.218-.266.558.107 1.282.725 1.282h3.126c1.026 0 1.945.694 2.054 1.715.045.422.068.85.068 1.285a11.95 11.95 0 01-2.649 7.521c-.388.482-.987.729-1.605.729H13.48c-.483 0-.964-.078-1.423-.23l-3.114-1.04a4.501 4.501 0 00-1.423-.23H5.904M7.864 4.5L6 6.375v11.25c0 .621-.504 1.125-1.125 1.125H3.388c-.621 0-1.125-.504-1.125-1.125V6.375L6 4.5" /></svg></button>
+                        <span class="text-sm text-slate-500">${currentIndex + 1} / ${generatedDeck.length}</span>
+                        <button id="keepCardBtn" class="p-2 rounded-full hover:bg-green-100" title="Keep"><svg class="w-8 h-8 text-green-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6.633 10.5c.806 0 1.533-.424 2.031-1.08a9.041 9.041 0 012.861-2.4c.723-.384 1.35-.956 1.653-1.715a4.498 4.498 0 00.322-1.672V3a.75.75 0 01.75-.75A2.25 2.25 0 0116.5 4.5c0 1.152-.26 2.243-.723 3.218-.266.558.107 1.282.725 1.282h3.126c1.026 0 1.945.694 2.054 1.715.045.422.068.85.068 1.285a11.95 11.95 0 01-2.649 7.521c-.388.482-.987.729-1.605.729H13.48c-.483 0-.964-.078-1.423-.23l-3.114-1.04a4.501 4.501 0 00-1.423-.23H5.904M6.633 10.5l-1.87-1.87a.75.75 0 00-1.06 1.061l1.87 1.87M6.633 10.5v11.25c0 .621-.504 1.125-1.125 1.125H3.388c-.621 0-1.125-.504-1.125-1.125V10.5" /></svg></button>
                     </div>
                 `;
 
                 const flashcardEl = modalBody.querySelector('.flashcard');
                 flashcardEl.addEventListener('click', () => flashcardEl.classList.toggle('is-flipped'));
-
-                modalBody.querySelector('#prevCard')?.addEventListener('click', () => {
-                    if (currentIndex > 0) {
-                        currentIndex--;
-                        updateCardView();
-                    }
+                
+                modalBody.querySelector('#keepCardBtn').addEventListener('click', () => {
+                    savedDeck.push(card);
+                    currentIndex++;
+                    updateCardView();
                 });
-                modalBody.querySelector('#nextCard')?.addEventListener('click', () => {
-                     if (currentIndex < cards.length - 1) {
-                        currentIndex++;
-                        updateCardView();
-                    }
+                modalBody.querySelector('#discardCardBtn').addEventListener('click', () => {
+                    logEvent('flashcard_feedback', { rating: 'negative', card: card });
+                    currentIndex++;
+                    updateCardView();
                 });
              };
 
-             openModal("Flashcards", "");
+             openModal("Curate Your Flashcard Deck", "");
              updateCardView();
+        }
+
+        async function saveDeck(deck) {
+            if (!currentUser) {
+                showError("You must be logged in to save a deck.");
+                return;
+            }
+             if (deck.length === 0) {
+                showError("There are no cards in your deck to save.");
+                return;
+            }
+
+            try {
+                await addDoc(collection(db, "users", currentUser.uid, "decks"), {
+                    title: `Deck from transcript: ${outputEl.textContent.substring(0, 20)}...`,
+                    cards: deck,
+                    createdAt: serverTimestamp()
+                });
+                logEvent('deck_saved');
+                closeModal();
+                animateText(statusEl, "Flashcard deck saved!");
+            } catch (e) {
+                console.error("Error saving deck: ", e);
+                showError("Could not save deck. Please try again.");
+                logEvent('deck_save_failed', { error: e.message });
+            }
         }
 
         modalClose.addEventListener('click', closeModal);
