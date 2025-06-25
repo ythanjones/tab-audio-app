@@ -7,6 +7,7 @@ const { GoogleAuth } = require("@google-ai/generativelanguage");
 
 // Initialize Firebase Admin SDK
 admin.initializeApp();
+const db = admin.firestore();
 
 // Define the API Key from environment variables for security
 const API_KEY = functions.config().gemini.key;
@@ -61,14 +62,12 @@ exports.gradeAiResponse = functions.firestore
 
     try {
       const auth = new GoogleAuth().fromAPIKey(API_KEY);
-      const client = new functions.https.HttpsAgent({
-          auth: auth,
-      });
-
-      const model = "gemini-1.5-flash";
-      const genAI = client.getGenerativeModel({ model });
+      // We don't need HttpsAgent for backend-to-backend calls
+      const { GoogleAIFileManager, GenerativeModel } = require("@google/generative-ai");
+      const genAI = new GenerativeModel(API_KEY);
       
-      const result = await genAI.generateContent(judgingPrompt);
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      const result = await model.generateContent(judgingPrompt);
       const judgeResponseText = result.response.text();
       
       // Clean up the response to ensure it's valid JSON
