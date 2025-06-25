@@ -292,7 +292,7 @@
 
         // Your web app's Firebase configuration
         const firebaseConfig = {
-            apiKey: "AIzaSyAPRb56nYHW_0d5NL8WvDyF2j1t-1hRu_4",
+            apiKey: "AIzaSyBruGCfWHwVbxWC5mGUDTHAjT_1vcXveiw",
             authDomain: "tab-audio-app.firebaseapp.com",
             projectId: "tab-audio-app",
             storageBucket: "tab-audio-app.firebasestorage.app",
@@ -300,6 +300,8 @@
             appId: "1:715569829205:web:216b98f170035f2fcf0bdc",
             measurementId: "G-BDW8YWD1QW"
         };
+        
+        const AI_JUDGE_SERVICE_URL = "https://idx-tab-audio-app-25992832-715569829205.europe-west2.run.app/grade-response";
 
         // --- Diagnostics & Logging System ---
         const sessionLog = [];
@@ -336,7 +338,7 @@
         const errorText = document.getElementById('error-text');
         
         // Interactive icon elements
-        const Container = document.getElementById('apiKeyContainer');
+        const apiKeyContainer = document.getElementById('apiKeyContainer');
         const apiKeyInput = document.getElementById('apiKeyInput');
         const loginContainer = document.getElementById('loginContainer');
         const loginForm = document.getElementById('login-form');
