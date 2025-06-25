@@ -1,5 +1,6 @@
 {
   "firebase_hosting": {
     "deploymentHostingUrl": "https://tab-audio-app.web.app"
-  }
+  },
+  "cloud_run_deploy": {}
 }

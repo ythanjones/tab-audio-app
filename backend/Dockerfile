@@ -1,4 +1,3 @@
-dockerfile
 # File: backend/Dockerfile
 # This file is a blueprint that tells Google Cloud Build how to create
 # the environment for our backend server.
