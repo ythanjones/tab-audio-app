@@ -1,43 +1,41 @@
-// File: functions/index.js
-// This file has been corrected to use the proper server-side syntax
-// for the Google AI SDK, which will fix the silent deployment failure.
+// File: backend/index.js
+// This file has been corrected to remove the unnecessary 'firebase-functions'
+// module, which was causing the deployment to fail.
 
-const functions = require("firebase-functions");
-const admin = require("firebase-admin");
+const express = require('express');
+const admin = require('firebase-admin');
 const { GoogleAuth } = require("@google-ai/generativelanguage");
-const { DiscussServiceClient } = require("@google-ai/generativelanguage").v1beta2;
+const cors = require('cors');
 
 // Initialize Firebase Admin SDK
 admin.initializeApp();
 const db = admin.firestore();
 
-// Define the API Key from environment variables for security
-const API_KEY = functions.config().gemini.key;
-const MODEL_NAME = "models/gemini-1.5-flash-latest";
+const app = express();
+app.use(cors({ origin: true })); // Enable CORS for requests from our web app
+app.use(express.json()); // Enable the server to read JSON bodies
 
-const client = new DiscussServiceClient({
-  authClient: new GoogleAuth().fromAPIKey(API_KEY),
-});
+// The API key must be securely stored as an environment variable in Cloud Run
+const API_KEY = process.env.GEMINI_API_KEY;
 
-/**
- * Cloud Function that triggers whenever a new document is created in the "feedback" collection.
- * It acts as an "AI Judge" to provide an objective quality score on the response.
- */
-exports.gradeAiResponse = functions.firestore
-  .document("feedback/{feedbackId}")
-  .onCreate(async (snap, context) => {
-    const feedbackData = snap.data();
-    const { transcript, prompt, response } = feedbackData;
+// This is our main API endpoint. The front-end will send requests here.
+app.post('/grade-response', async (req, res) => {
+    console.log("Received request to grade response.");
 
-    // Do not run the judge on its own feedback or if the initial response was an error.
-    if (!transcript || !prompt || !response || response.startsWith("ERROR:")) {
-      functions.logger.log("Skipping AI grading for incomplete or error feedback.");
-      return null;
+    const { feedbackId, transcript, prompt, response } = req.body;
+
+    if (!feedbackId || !transcript || !prompt || !response) {
+        console.error("Missing required fields in request body.");
+        return res.status(400).send({ error: 'Missing required fields.' });
     }
-    
-    functions.logger.log(`Grading response for feedback ID: ${context.params.feedbackId}`);
 
-    // The "meta-prompt" for our AI Judge
+    if (response.startsWith("ERROR:")) {
+        console.log("Skipping AI grading for error feedback.");
+        return res.status(200).send({ message: "Skipped grading for error response." });
+    }
+
+    console.log(`Grading response for feedback ID: ${feedbackId}`);
+    
     const judgingPrompt = `
       You are a Quality Assurance specialist for an AI learning assistant. 
       Your task is to evaluate an AI-generated response based on a user's transcript.
@@ -68,29 +66,40 @@ exports.gradeAiResponse = functions.firestore
     `;
 
     try {
-      if (!API_KEY) {
-        throw new Error("GEMINI_API_KEY environment variable not set.");
-      }
+        if (!API_KEY) {
+            throw new Error("GEMINI_API_KEY environment variable not set.");
+        }
       
-      const [judgeResult] = await client.generateMessage({
-        model: MODEL_NAME,
-        prompt: { messages: [{ content: judgingPrompt }] },
-      });
+        const auth = new GoogleAuth().fromAPIKey(API_KEY);
+        const { GoogleAIFileManager, GenerativeModel } = require("@google/generative-ai");
+        const genAI = new GenerativeModel(API_KEY);
       
-      const judgeResponseText = judgeResult.candidates[0].content;
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const result = await model.generateContent(judgingPrompt);
+        const judgeResponseText = result.response.text();
       
-      // Clean up the response to ensure it's valid JSON
-      const jsonText = judgeResponseText.replace(/```json|```/g, "").trim();
-      const gradingResult = JSON.parse(jsonText);
+        const jsonText = judgeResponseText.replace(/```json|```/g, "").trim();
+        const gradingResult = JSON.parse(jsonText);
 
-      functions.logger.log("AI Judge response received:", gradingResult);
+        console.log("AI Judge response received:", gradingResult);
 
-      // Update the original feedback document with the AI Judge's scores
-      return snap.ref.set({ ai_grade: gradingResult }, { merge: true });
+        // Update the original feedback document with the AI Judge's scores
+        const feedbackRef = db.collection('feedback').doc(feedbackId);
+        await feedbackRef.set({ ai_grade: gradingResult }, { merge: true });
+
+        return res.status(200).send({ success: true, grade: gradingResult });
 
     } catch (error) {
-      functions.logger.error("Error during AI grading:", error);
+      console.error("Error during AI grading:", error);
       // Save the error to the document for later review
-      return snap.ref.set({ ai_grade_error: error.message }, { merge: true });
+      const feedbackRef = db.collection('feedback').doc(feedbackId);
+      await feedbackRef.set({ ai_grade_error: error.message }, { merge: true });
+      return res.status(500).send({ error: error.message });
     }
-  });
+});
+
+// The server listens for requests on the port provided by Cloud Run
+const port = process.env.PORT || 8080;
+app.listen(port, () => {
+    console.log(`Server listening on port ${port}`);
+});
