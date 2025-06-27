@@ -11,7 +11,7 @@ import {
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
-    apiKey: "AIzaSyBruGCfWHwVbxWC5mGUDTHAjT_1vcXveiw",
+    apiKey: "AIzaSyCH7jBG_iSTFAYrWEtazEvlXk2ZC413AGo",
     authDomain: "tab-audio-app.firebaseapp.com",
     projectId: "tab-audio-app",
     storageBucket: "tab-audio-app.firebasestorage.app",
