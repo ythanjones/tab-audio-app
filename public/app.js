@@ -91,7 +91,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let activeApiKey = null;
     let activeContainer = null;
     let firebaseInitialized = false;
-    let analytics, db;
+    let analytics, db, auth;
     let recordingStartTime;
     let recordingFeedbackInterval;
     const promptsCache = new Map();
@@ -102,7 +102,7 @@ document.addEventListener('DOMContentLoaded', () => {
              throw new Error("Firebase config object is empty. Please paste your project's configuration keys into the script.");
         }
         const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
+        auth = getAuth(app);
         analytics = getAnalytics(app);
         db = getFirestore(app);
         firebaseInitialized = true;
@@ -124,59 +124,45 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        async function handleAuth() {
-            const email = emailInput.value;
-            const password = passwordInput.value;
-            if (!email || !password) {
-                showError("Please enter both email and password.");
-                return;
-            }
-            hideError();
-
-            try {
-                await signInWithEmailAndPassword(auth, email, password);
-                logEvent('user_action', { action_type: 'login' });
-            } catch (error) {
-                if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
-                    try {
-                        await createUserWithEmailAndPassword(auth, email, password);
-                         logEvent('user_action', { action_type: 'signup' });
-                    } catch (signUpError) {
-                        showError(signUpError.message);
-                    }
-                } else {
-                    showError(error.message);
-                }
-            }
-        }
-    
-        function handleLogout() {
-            signOut(auth).then(() => {
-                logEvent('user_action', { action_type: 'logout' });
-            }).catch(error => showError(error.message));
-        }
-
-        loginButton.addEventListener('click', (e) => {
-            e.stopPropagation();
-            handleAuth();
-        });
-        logoutButton.addEventListener('click', handleLogout);
-        
-        // Add Enter key listener for login/signup
-        [emailInput, passwordInput].forEach(input => {
-            input.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleAuth();
-                }
-            });
-        });
-
     } catch (error) {
         console.error("Firebase Initialization Error:", error.message);
         showError(error.message, true);
     }
     
+    async function handleAuth() {
+        if (!firebaseInitialized) return;
+        const email = emailInput.value;
+        const password = passwordInput.value;
+        if (!email || !password) {
+            showError("Please enter both email and password.");
+            return;
+        }
+        hideError();
+
+        try {
+            await signInWithEmailAndPassword(auth, email, password);
+            logEvent('user_action', { action_type: 'login' });
+        } catch (error) {
+            if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+                try {
+                    await createUserWithEmailAndPassword(auth, email, password);
+                     logEvent('user_action', { action_type: 'signup' });
+                } catch (signUpError) {
+                    showError(signUpError.message);
+                }
+            } else {
+                showError(error.message);
+            }
+        }
+    }
+
+    function handleLogout() {
+        if (!firebaseInitialized) return;
+        signOut(auth).then(() => {
+            logEvent('user_action', { action_type: 'logout' });
+        }).catch(error => showError(error.message));
+    }
+
     function closeContainer(container) {
         if (!container || !container.classList.contains('is-active')) return;
 
@@ -210,25 +196,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }, 400);
         }
     }
-
-    [apiKeyContainer, loginContainer].forEach(container => {
-        container.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (e.target.tagName === 'INPUT') return;
-            if (activeContainer === container) closeContainer(container);
-            else openContainer(container);
-        });
-    });
-
-    document.addEventListener('click', () => { if (activeContainer) closeContainer(activeContainer); });
-
-    apiKeyInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            validateApiKey(apiKeyInput.value.trim());
-        }
-    });
-
+    
     function animateText(element, text, delay = 30) {
         clearTimeout(animationTimeout);
         element.innerHTML = '';
@@ -680,7 +648,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const saveFeedback = async (detailedText = '') => {
              try {
-                await addDoc(collection(db, "feedback"), {
+                const docRef = await addDoc(collection(db, "feedback"), {
                     userId: currentUser ? currentUser.uid : 'anonymous',
                     promptId: promptId,
                     rating: rating,
@@ -884,6 +852,3 @@ document.addEventListener('DOMContentLoaded', () => {
     
     updateUI('Initial', 'Ready');
 });
-</script>
-</body>
-</html>
