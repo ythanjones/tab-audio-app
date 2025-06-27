@@ -11,7 +11,7 @@ import {
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
-    apiKey: "AIzaSyCH7jBG_iSTFAYrWEtazEvlXk2ZC413AGo",
+    apiKey: "AIzaSyBruGCfWHwVbxWC5mGUDTHAjT_1vcXveiw",
     authDomain: "tab-audio-app.firebaseapp.com",
     projectId: "tab-audio-app",
     storageBucket: "tab-audio-app.firebasestorage.app",
@@ -50,8 +50,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // DOM element references
     const appContainer = document.getElementById('app-container');
-    const startButton = document.getElementById('startButton');
-    const stopButton = document.getElementById('stopButton');
+    const startButton = document.getElementById('recordButton');
+    const pauseButton = document.getElementById('pauseButton');
+    const transcribeButton = document.getElementById('transcribeButton');
     const statusEl = document.getElementById('status');
     const outputEl = document.getElementById('transcriptionOutput');
     const errorDisplay = document.getElementById('error-message');
@@ -70,10 +71,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const logoutButton = document.getElementById('logoutButton');
     const historyButton = document.getElementById('historyButton');
     const settingsButton = document.getElementById('settingsButton');
-    const saveButton = document.getElementById('saveButton');
     const debugButton = document.getElementById('debugButton');
     
-    // AI Action Buttons
+    // AI Action Elements
+    const aiDropdownButton = document.getElementById('aiDropdownButton');
+    const aiDropdownMenu = document.getElementById('aiDropdownMenu');
     const aiButtons = document.querySelectorAll('.ai-button');
 
     const modalBackdrop = document.getElementById('modal-backdrop');
@@ -86,14 +88,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // State variables
     let mediaRecorder;
     let audioStream;
+    let audioChunks = [];
     let animationTimeout;
     let currentUser = null; 
     let activeApiKey = null;
     let activeContainer = null;
     let firebaseInitialized = false;
     let analytics, db, auth;
-    let recordingStartTime;
-    let recordingFeedbackInterval;
     const promptsCache = new Map();
 
     // Initialize Firebase
@@ -272,20 +273,26 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function setAiButtonsState(enabled) {
-        aiButtons.forEach(button => {
-            button.disabled = !enabled;
-            button.classList.toggle('btn-disabled', !enabled);
-        });
-        saveButton.disabled = !enabled;
-        saveButton.classList.toggle('btn-disabled', !enabled);
+        aiDropdownButton.disabled = !enabled;
+        aiDropdownButton.classList.toggle('btn-disabled', !enabled);
     }
     
     function updateUI(status, message = '') {
         animateText(statusEl, message || status);
-        startButton.disabled = (status === 'Recording...');
-        startButton.classList.toggle('btn-disabled', status === 'Recording...');
-        stopButton.disabled = (status !== 'Recording...');
-        stopButton.classList.toggle('btn-disabled', status !== 'Recording...');
+        
+        const isRecording = status === 'Recording';
+        const isPaused = status === 'Paused';
+        const hasAudio = audioChunks.length > 0;
+
+        startButton.textContent = isRecording ? 'Resume' : 'Record';
+        startButton.disabled = isRecording && !isPaused;
+        
+        pauseButton.disabled = !isRecording || isPaused;
+        transcribeButton.disabled = !hasAudio || isRecording;
+        
+        [startButton, pauseButton, transcribeButton].forEach(btn => {
+             btn.classList.toggle('btn-disabled', btn.disabled);
+        });
     }
 
     async function handleStartClick() {
@@ -295,6 +302,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         hideError();
         if (!getApiKey()) return;
+        
+        if (mediaRecorder && mediaRecorder.state === 'paused') {
+            mediaRecorder.resume();
+            updateUI('Recording');
+            return;
+        }
 
         if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
             showError("Your browser does not support screen capture.");
@@ -307,26 +320,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 displayStream.getVideoTracks()[0].stop();
                 
                 logEvent('recording_started', { user_id: currentUser ? currentUser.uid : 'anonymous' });
-                recordingStartTime = Date.now();
-                const audioChunks = [];
+                audioChunks = []; // Reset for new recording
 
                 mediaRecorder = new MediaRecorder(audioStream, { mimeType: 'audio/webm' });
-                
-                mediaRecorder.onstop = async () => {
-                     if (recordingFeedbackInterval) clearInterval(recordingFeedbackInterval);
-                     const duration_seconds = Math.round((Date.now() - recordingStartTime) / 1000);
-                     updateUI('Transcribing...', 'Finalizing transcription...');
-                     const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                     if (audioBlob.size === 0) {
-                         updateUI('Stopped', 'No audio was recorded.');
-                         logEvent('recording_stopped', { duration_seconds, final_word_count: 0 });
-                         return;
-                     }
-                     const base64String = await blobToBase64(audioBlob);
-                     await transcribeAudio(base64String);
-                     const final_word_count = outputEl.textContent.trim().split(/\s+/).length;
-                     logEvent('recording_stopped', { duration_seconds, final_word_count });
-                };
                 
                 mediaRecorder.ondataavailable = (event) => {
                     if (event.data.size > 0) audioChunks.push(event.data);
@@ -334,16 +330,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 outputEl.innerHTML = '';
                 setAiButtonsState(false);
-                updateUI('Recording...', 'Recording...');
-                mediaRecorder.start();
-
-                let dotCount = 1;
-                recordingFeedbackInterval = setInterval(() => {
-                    animateText(statusEl, "Recording" + ".".repeat(dotCount));
-                    dotCount = (dotCount % 3) + 1;
-                }, 500);
+                updateUI('Recording');
+                mediaRecorder.start(1000); // Small timeslice to keep it active
                 
-                audioStream.getTracks()[0].onended = () => handleRecordingStop();
+                audioStream.getTracks()[0].onended = () => handleRecordingStop(true);
             } else {
                 showError("No audio track found. Please ensure you share tab audio.");
                 displayStream.getTracks().forEach(track => track.stop());
@@ -359,15 +349,35 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    function handleRecordingStop() {
-        if (recordingFeedbackInterval) clearInterval(recordingFeedbackInterval);
+    function handlePauseClick() {
         if (mediaRecorder && mediaRecorder.state === 'recording') {
+            mediaRecorder.pause();
+            updateUI('Paused');
+        }
+    }
+
+    async function handleTranscribeClick() {
+        if (audioChunks.length === 0) {
+            showError("No audio has been recorded to transcribe.");
+            return;
+        }
+        updateUI('Transcribing...');
+        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        const base64String = await blobToBase64(audioBlob);
+        await transcribeAudio(base64String);
+    }
+    
+    function handleRecordingStop(fromStreamEnd = false) {
+        if (mediaRecorder && (mediaRecorder.state === 'recording' || mediaRecorder.state === 'paused')) {
             mediaRecorder.stop();
         }
         if (audioStream) {
             audioStream.getTracks().forEach(track => track.stop());
         }
-        updateUI('Stopped', 'Stopped');
+        // If stopped by user, not stream ending, enable transcribe button
+        if(!fromStreamEnd && audioChunks.length > 0) {
+            updateUI('Stopped');
+        }
     }
     
     function blobToBase64(blob) {

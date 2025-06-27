@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI-Powered Audio Transcriber</title>
+    <title>AI Learning Assistant</title>
     <!-- Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Custom Stylesheet -->
@@ -13,13 +13,13 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
-<body class="bg-slate-200 text-slate-800 flex items-center justify-center min-h-screen p-4">
+<body class="bg-slate-100 text-slate-800 flex items-center justify-center min-h-screen p-4">
 
     <!-- Main container for the application -->
-    <div id="app-container" class="w-full max-w-3xl mx-auto p-8 bg-white rounded-md shadow-lg space-y-8 relative">
+    <div id="app-container" class="w-full max-w-2xl mx-auto p-6 bg-white rounded-lg border border-slate-200 shadow-lg space-y-6 relative">
         
         <!-- Top bar for icons -->
-        <div class="absolute top-0 left-0 w-full flex justify-between items-start px-8 py-6">
+        <div class="absolute top-0 left-0 w-full flex justify-between items-start px-6 py-5">
             <!-- API Key Icon and Input -->
             <div id="apiKeyContainer" class="interactive-icon-container">
                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-animated text-slate-500">
@@ -29,7 +29,7 @@
                     <line x1="17" y1="12" x2="17" y2="18"></line>
                     <line x1="20" y1="12" x2="20" y2="15"></line>
                 </svg>
-                <input type="password" id="apiKeyInput" class="border-slate-300 rounded-md p-2 text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500" placeholder="Enter Session API Key...">
+                <input type="password" id="apiKeyInput" class="input-base focus:ring-blue-500" placeholder="Enter Session API Key...">
             </div>
 
             <!-- Login Icon and Inputs -->
@@ -39,12 +39,12 @@
                     <circle cx="12" cy="7" r="4"></circle>
                 </svg>
                 <div id="login-form" class="flex flex-col">
-                    <input type="email" id="emailInput" class="login-input text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" placeholder="Email">
+                    <input type="email" id="emailInput" class="login-input text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Email">
                     <div id="password-wrapper" class="login-form-extra">
-                        <input type="password" id="passwordInput" class="login-input text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" placeholder="Password">
+                        <input type="password" id="passwordInput" class="login-input text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Password">
                     </div>
                      <div id="auth-buttons" class="login-form-extra space-y-2">
-                        <button id="loginButton" class="w-full text-sm bg-teal-600 text-white py-1.5 rounded-md hover:bg-teal-700">Login / Sign Up</button>
+                        <button id="loginButton" class="w-full text-sm bg-blue-600 text-white py-1.5 rounded-md hover:bg-blue-700">Login / Sign Up</button>
                     </div>
                 </div>
             </div>
@@ -52,12 +52,10 @@
             <!-- User Info / Logout Button -->
              <div id="userInfo" class="items-center gap-4">
                  <span id="userEmail" class="text-sm font-medium text-slate-700"></span>
-                 <!-- History Button -->
-                 <button id="historyButton" title="View History" class="text-slate-500 hover:text-teal-600">
+                 <button id="historyButton" title="View History" class="text-slate-500 hover:text-blue-600">
                     <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
                  </button>
-                 <!-- Settings Button -->
-                 <button id="settingsButton" title="Settings" class="text-slate-500 hover:text-teal-600">
+                 <button id="settingsButton" title="Settings" class="text-slate-500 hover:text-blue-600">
                      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
                  </button>
                  <button id="logoutButton" class="text-slate-500 hover:text-red-600">
@@ -67,8 +65,9 @@
         </div>
 
         <!-- Header -->
-        <div class="text-center pt-20">
-            <h1 class="text-4xl font-semibold text-slate-800">YouTube Learning Assistant</h1>
+        <div class="text-center pt-16">
+            <h1 class="text-3xl font-bold text-slate-800">YouTube Learning Assistant</h1>
+            <p class="text-sm text-slate-500 mt-1">Capture a video's knowledge. Master it faster.</p>
         </div>
         
         <!-- Error Message Display -->
@@ -77,51 +76,45 @@
             <span class="block sm:inline" id="error-text"></span>
         </div>
         
-        <!-- Controls & Status Section -->
-        <div class="text-center space-y-4 pt-4">
-             <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
-                <button id="startButton" class="btn btn-primary">
-                    Start Recording
-                </button>
-                <button id="stopButton" class="btn btn-secondary btn-disabled" disabled>
-                    Stop Recording
-                </button>
-            </div>
-            <p class="text-sm text-slate-500 h-5">Status: <span id="status" class="font-semibold text-blue-700"></span></p>
-        </div>
-
-        <!-- Transcription & AI Actions Section -->
-        <div class="space-y-6 pt-8 border-t border-slate-200">
-            <div class="flex justify-between items-center">
-                 <!-- Transcription Output DIV, styled like a textarea -->
-                <div id="transcriptionOutput" class="output-box" placeholder="Transcription will appear here..."></div>
-                <button id="saveButton" class="btn-icon bg-green-600 hover:bg-green-700 focus:ring-green-500 btn-disabled" disabled title="Save Transcript">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
-                </button>
+        <!-- Main Content Area -->
+        <div class="space-y-4">
+            <!-- Recording & Transcription Area -->
+            <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 space-y-4">
+                <div id="transcriptionOutput" class="output-box" placeholder="Your transcript will appear here after recording..."></div>
+                <div class="flex justify-between items-center">
+                    <p class="text-sm text-slate-500 h-5">Status: <span id="status" class="font-semibold text-blue-700">Ready</span></p>
+                    <div class="flex items-center gap-2">
+                        <button id="recordButton" class="btn btn-primary">Record</button>
+                        <button id="pauseButton" class="btn btn-secondary btn-disabled" disabled>Pause</button>
+                        <button id="transcribeButton" class="btn btn-secondary btn-disabled" disabled>Transcribe</button>
+                    </div>
+                </div>
             </div>
 
-
-            <!-- AI Teacher Actions -->
-             <div class="pt-4 space-y-2">
-                 <h3 class="text-sm font-semibold text-slate-500 uppercase tracking-wider">Teacher AI</h3>
-                 <div id="aiActions" class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <button data-prompt-id="key_concepts" class="btn btn-secondary ai-button btn-disabled" disabled>Key Concepts</button>
-                    <button data-prompt-id="explain_like_im_10" class="ai-button btn btn-secondary btn-disabled" disabled>Explain Like I'm 10</button>
-                    <button data-prompt-id="main_lessons" class="ai-button btn btn-secondary btn-disabled" disabled>Main Lessons</button>
-                 </div>
-             </div>
-             
-             <!-- Learning Resource Generators -->
-             <div class="pt-4 space-y-2">
-                 <h3 class="text-sm font-semibold text-slate-500 uppercase tracking-wider">Learning Resource Generators</h3>
-                 <div id="generatorActions" class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <button data-prompt-id="generate_flashcards" class="ai-button btn btn-tertiary btn-disabled" disabled>Generate Flashcards</button>
-                 </div>
-             </div>
+            <!-- AI Actions Dropdown -->
+            <div class="relative inline-block text-left w-full">
+                <div>
+                    <button type="button" id="aiDropdownButton" class="btn btn-secondary w-full flex justify-center items-center gap-2 btn-disabled" disabled>
+                        AI Tools
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </button>
+                </div>
+                <div id="aiDropdownMenu" class="origin-top-right absolute right-0 mt-2 w-full rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none hidden" role="menu">
+                    <div class="py-1" role="none">
+                        <p class="px-4 py-2 text-xs text-slate-400 uppercase">Freemium Features</p>
+                        <button data-prompt-id="summarize" class="ai-button">Summarize</button>
+                        <button data-prompt-id="key_concepts" class="ai-button">Key Concepts</button>
+                        <button data-prompt-id="action_items" class="ai-button">Action Items</button>
+                        <div class="border-t border-slate-100 my-1"></div>
+                        <p class="px-4 py-2 text-xs text-slate-400 uppercase">Pro Features</p>
+                        <button data-prompt-id="generate_flashcards" class="ai-button pro-feature">Generate Flashcards</button>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Debug Report Button -->
-        <button id="debugButton" class="fixed bottom-4 right-4 bg-slate-800 text-white p-2 rounded-full shadow-lg hover:bg-slate-900 transition-colors" title="Generate Debug Report">
+        <button id="debugButton" class="fixed bottom-4 right-4 bg-slate-700 text-white p-2 rounded-full shadow-lg hover:bg-slate-800 transition-colors" title="Generate Debug Report">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4.5l-2.7 5.4-5.4 2.7 5.4 2.7 2.7 5.4 2.7-5.4 5.4-2.7-5.4-2.7-2.7-5.4zM7 21l-4-4"/></svg>
         </button>
     </div>
