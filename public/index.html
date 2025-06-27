@@ -80,22 +80,22 @@
         <!-- Controls & Status Section -->
         <div class="text-center space-y-4 pt-4">
              <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
-                <button id="startButton" class="w-full sm:w-auto bg-teal-600 text-white font-semibold py-2 px-6 rounded-md transition-all duration-200 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-opacity-75">
+                <button id="startButton" class="btn btn-primary">
                     Start Recording
                 </button>
-                <button id="stopButton" class="w-full sm:w-auto border border-slate-300 text-slate-600 font-semibold py-2 px-6 rounded-md transition-all duration-200 hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-opacity-75 btn-disabled" disabled>
+                <button id="stopButton" class="btn btn-secondary btn-disabled" disabled>
                     Stop Recording
                 </button>
             </div>
-            <p class="text-sm text-slate-500 h-5">Status: <span id="status" class="font-semibold text-teal-600"></span></p>
+            <p class="text-sm text-slate-500 h-5">Status: <span id="status" class="font-semibold text-blue-700"></span></p>
         </div>
 
         <!-- Transcription & AI Actions Section -->
-        <div class="space-y-4 pt-8 border-t border-slate-200">
+        <div class="space-y-6 pt-8 border-t border-slate-200">
             <div class="flex justify-between items-center">
                  <!-- Transcription Output DIV, styled like a textarea -->
-                <div id="transcriptionOutput" class="w-full h-48 bg-slate-100 border border-slate-300 rounded-md p-4 text-slate-800 overflow-y-auto focus:outline-none focus:ring-2 focus:ring-teal-500" placeholder="Transcription will appear here..."></div>
-                <button id="saveButton" class="ml-4 px-4 py-2 text-sm font-semibold text-white bg-green-600 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 btn-disabled" disabled title="Save Transcript">
+                <div id="transcriptionOutput" class="output-box" placeholder="Transcription will appear here..."></div>
+                <button id="saveButton" class="btn-icon bg-green-600 hover:bg-green-700 focus:ring-green-500 btn-disabled" disabled title="Save Transcript">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
                 </button>
             </div>
@@ -105,9 +105,9 @@
              <div class="pt-4 space-y-2">
                  <h3 class="text-sm font-semibold text-slate-500 uppercase tracking-wider">Teacher AI</h3>
                  <div id="aiActions" class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <button data-prompt-id="key_concepts" class="ai-button w-full border border-slate-300 text-slate-600 font-semibold py-2 px-4 rounded-md transition-all duration-200 hover:bg-slate-200 btn-disabled" disabled>Key Concepts</button>
-                    <button data-prompt-id="explain_like_im_10" class="ai-button w-full border border-slate-300 text-slate-600 font-semibold py-2 px-4 rounded-md transition-all duration-200 hover:bg-slate-200 btn-disabled" disabled>Explain Like I'm 10</button>
-                    <button data-prompt-id="main_lessons" class="ai-button w-full border border-slate-300 text-slate-600 font-semibold py-2 px-4 rounded-md transition-all duration-200 hover:bg-slate-200 btn-disabled" disabled>Main Lessons</button>
+                    <button data-prompt-id="key_concepts" class="btn btn-secondary ai-button btn-disabled" disabled>Key Concepts</button>
+                    <button data-prompt-id="explain_like_im_10" class="ai-button btn btn-secondary btn-disabled" disabled>Explain Like I'm 10</button>
+                    <button data-prompt-id="main_lessons" class="ai-button btn btn-secondary btn-disabled" disabled>Main Lessons</button>
                  </div>
              </div>
              
@@ -115,13 +115,13 @@
              <div class="pt-4 space-y-2">
                  <h3 class="text-sm font-semibold text-slate-500 uppercase tracking-wider">Learning Resource Generators</h3>
                  <div id="generatorActions" class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <button data-prompt-id="generate_flashcards" class="ai-button w-full bg-teal-50 border border-teal-300 text-teal-700 font-semibold py-2 px-4 rounded-md transition-all duration-200 hover:bg-teal-100 btn-disabled" disabled>Generate Flashcards</button>
+                    <button data-prompt-id="generate_flashcards" class="ai-button btn btn-tertiary btn-disabled" disabled>Generate Flashcards</button>
                  </div>
              </div>
         </div>
 
         <!-- Debug Report Button -->
-        <button id="debugButton" class="fixed bottom-4 right-4 bg-slate-700 text-white p-2 rounded-full shadow-lg hover:bg-slate-800 transition-colors" title="Generate Debug Report">
+        <button id="debugButton" class="fixed bottom-4 right-4 bg-slate-800 text-white p-2 rounded-full shadow-lg hover:bg-slate-900 transition-colors" title="Generate Debug Report">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4.5l-2.7 5.4-5.4 2.7 5.4 2.7 2.7 5.4 2.7-5.4 5.4-2.7-5.4-2.7-2.7-5.4zM7 21l-4-4"/></svg>
         </button>
     </div>
