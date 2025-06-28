@@ -7,7 +7,7 @@
     <!-- Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Custom Stylesheet -->
-    <link rel="stylesheet" href="styles.css?v=2.1"> <!-- Version updated to v2.1 -->
+    <link rel="stylesheet" href="styles.css?v=2.2"> <!-- Version updated -->
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -25,8 +25,7 @@
             <div id="loginContainer">
                 <!-- Simplified Login: Will be handled by JS -->
             </div>
-            <!-- The #userInfo div is now a simple flex container for the new layout -->
-            <div id="userInfo" class="hidden"> 
+            <div id="userInfo" class="hidden">
                 <span id="userEmail" class="user-email-box"></span>
                 <a href="library.html" id="libraryLink" class="header-icon-button" title="My Library">
                     <i data-feather="book-open"></i>
@@ -59,6 +58,11 @@
                 <button id="summarizeButton" class="btn btn-primary" disabled>
                     <i data-feather="file-text"></i>
                     <span>Summarize</span>
+                </button>
+                <!-- ADDED: Save to Library Button -->
+                <button id="saveButton" class="btn btn-secondary" disabled>
+                    <i data-feather="save"></i>
+                    <span>Save</span>
                 </button>
             </div>
         </main>
