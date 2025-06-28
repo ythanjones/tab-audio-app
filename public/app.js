@@ -71,6 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const logoutButton = document.getElementById('logoutButton');
     const historyButton = document.getElementById('historyButton');
     const settingsButton = document.getElementById('settingsButton');
+    const saveButton = document.getElementById('saveButton');
     const debugButton = document.getElementById('debugButton');
     
     // AI Action Elements
@@ -95,6 +96,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let activeContainer = null;
     let firebaseInitialized = false;
     let analytics, db, auth;
+    let recordingStartTime;
+    let recordingFeedbackInterval;
     const promptsCache = new Map();
 
     // Initialize Firebase
@@ -284,7 +287,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const isPaused = status === 'Paused';
         const hasAudio = audioChunks.length > 0;
 
-        startButton.textContent = isRecording ? 'Resume' : 'Record';
+        startButton.textContent = isPaused ? 'Resume' : 'Record';
         startButton.disabled = isRecording && !isPaused;
         
         pauseButton.disabled = !isRecording || isPaused;
@@ -331,7 +334,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 outputEl.innerHTML = '';
                 setAiButtonsState(false);
                 updateUI('Recording');
-                mediaRecorder.start(1000); // Small timeslice to keep it active
+                mediaRecorder.start(1000); 
                 
                 audioStream.getTracks()[0].onended = () => handleRecordingStop(true);
             } else {
@@ -357,6 +360,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function handleTranscribeClick() {
+        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+            mediaRecorder.stop();
+        }
         if (audioChunks.length === 0) {
             showError("No audio has been recorded to transcribe.");
             return;
@@ -368,13 +374,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function handleRecordingStop(fromStreamEnd = false) {
-        if (mediaRecorder && (mediaRecorder.state === 'recording' || mediaRecorder.state === 'paused')) {
+        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
             mediaRecorder.stop();
         }
         if (audioStream) {
             audioStream.getTracks().forEach(track => track.stop());
         }
-        // If stopped by user, not stream ending, enable transcribe button
         if(!fromStreamEnd && audioChunks.length > 0) {
             updateUI('Stopped');
         }
@@ -425,7 +430,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!apiKey) return;
         
         modalFeedback.classList.add('hidden');
-        openModal(taskTitle, '<div class="flex justify-center items-center"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div></div>');
+        openModal(taskTitle, '<div class="flex justify-center items-center"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>');
         
         const transcript = outputEl.textContent;
         const finalPrompt = promptTemplate.replace('{transcript}', transcript);
@@ -482,7 +487,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         
-        openModal("Transcript History", '<div class="flex justify-center items-center"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div></div>');
+        openModal("Transcript History", '<div class="flex justify-center items-center"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>');
         
         try {
             const q = query(collection(db, "users", currentUser.uid, "transcripts"), orderBy("createdAt", "desc"), limit(20));
@@ -535,7 +540,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const userDocRef = doc(db, "users", currentUser.uid);
             const docSnap = await getDoc(userDocRef);
             if (docSnap.exists() && docSnap.data().geminiApiKey) {
-                activeApiKey = docSnap.data().geminiApiKey; // Load the key into our active state
+                activeApiKey = docSnap.data().geminiApiKey;
                 console.log("User API key loaded.");
             } else {
                 activeApiKey = null;
@@ -710,11 +715,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Event Listeners ---
     startButton.addEventListener('click', handleStartClick);
-    stopButton.addEventListener('click', handleRecordingStop);
+    pauseButton.addEventListener('click', handlePauseClick);
+    transcribeButton.addEventListener('click', handleTranscribeClick);
     saveButton.addEventListener('click', saveTranscript);
     historyButton.addEventListener('click', viewHistory);
     settingsButton.addEventListener('click', openSettingsModal);
     debugButton.addEventListener('click', openDebugModal);
+
+    loginButton.addEventListener('click', (e) => {
+        e.stopPropagation();
+        handleAuth();
+    });
+    logoutButton.addEventListener('click', handleLogout);
+
+    // AI Dropdown logic
+    aiDropdownButton.addEventListener('click', (e) => {
+        e.stopPropagation();
+        aiDropdownMenu.classList.toggle('hidden');
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!aiDropdownButton.contains(e.target) && !aiDropdownMenu.contains(e.target)) {
+            aiDropdownMenu.classList.add('hidden');
+        }
+        if (activeContainer && !activeContainer.contains(e.target)) {
+            closeContainer(activeContainer);
+        }
+    });
 
     aiButtons.forEach(button => {
         button.addEventListener('click', () => {
@@ -729,135 +756,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (outputEl.textContent.trim()) {
                 logEvent('ai_action_used', { action_type: promptId });
-                if (promptId === 'generate_flashcards') {
-                    generateFlashcards(promptTemplate);
-                } else {
-                    generateTextWithGemini(promptTemplate, taskTitle, promptId);
-                }
+                generateTextWithGemini(promptTemplate, taskTitle, promptId);
             } else {
                 showError("There is no transcript to analyze.");
             }
+             aiDropdownMenu.classList.add('hidden');
         });
     });
     
-    async function generateFlashcards(promptTemplate) {
-        const apiKey = getApiKey();
-        if(!apiKey) return;
-        openModal("Generating Flashcards", '<div class="flex justify-center items-center"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div></div>');
-
-        const transcript = outputEl.textContent.trim();
-        const finalPrompt = promptTemplate.replace('{transcript}', transcript);
-
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-        const payload = { contents: [{ parts: [{ text: finalPrompt }] }] };
-
-        try {
-             const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-             if (!response.ok) throw new Error(`API Error: ${response.status}`);
-            
-             const result = await response.json();
-             if (result.candidates && result.candidates[0].content.parts[0].text) {
-                const jsonText = result.candidates[0].content.parts[0].text.replace(/```json|```/g, '').trim();
-                const flashcards = JSON.parse(jsonText);
-                openFlashcardModal(flashcards, transcript, finalPrompt);
-             } else {
-                throw new Error('Invalid API response.');
-             }
-        } catch (err) {
-             modalBody.innerHTML = `<p class="text-red-600">Could not generate flashcards. Error: ${err.message}</p>`;
-             showFeedbackUI(transcript, finalPrompt, `ERROR: ${err.message}`, 'generate_flashcards');
-        }
-    }
-
-    function openFlashcardModal(cards, originalTranscript, originalPrompt) {
-         if (!cards || cards.length === 0) {
-            modalBody.innerHTML = `<p class="text-slate-500">No flashcards were generated.</p>`;
-            showFeedbackUI(originalTranscript, originalPrompt, '[]', 'generate_flashcards');
-            return;
-         }
-         
-         let generatedDeck = [...cards];
-         let savedDeck = [];
-         let currentIndex = 0;
-         
-         const updateCardView = () => {
-            if(currentIndex >= generatedDeck.length) {
-                modalBody.innerHTML = `
-                    <div class="text-center p-4">
-                        <h3 class="text-lg font-semibold">Deck Complete!</h3>
-                        <p class="text-slate-600 mt-2">${savedDeck.length} card(s) have been added to your new deck.</p>
-                        <button id="saveDeckBtn" class="mt-4 px-4 py-2 text-sm font-semibold text-white bg-green-600 rounded-md hover:bg-green-700 ${savedDeck.length === 0 ? 'hidden' : ''}">Save Deck to History</button>
-                    </div>
-                `;
-                modalBody.querySelector('#saveDeckBtn')?.addEventListener('click', () => saveDeck(savedDeck));
-                showFeedbackUI(originalTranscript, originalPrompt, JSON.stringify(savedDeck), 'generate_flashcards');
-                return;
-            }
-
-            const card = generatedDeck[currentIndex];
-            modalBody.innerHTML = `
-                <div class="flashcard-container mb-4">
-                    <div class="flashcard cursor-pointer">
-                        <div class="flashcard-face flashcard-front">
-                            <p class="text-lg text-center">${card.front}</p>
-                        </div>
-                         <div class="flashcard-face flashcard-back">
-                             <p class="text-lg text-center">${card.back}</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="flex justify-between items-center">
-                    <button id="discardCardBtn" class="p-2 rounded-full hover:bg-red-100" title="Discard"><svg class="w-8 h-8 text-red-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M7.864 4.5c.806 0 1.533.424 2.031 1.08a9.041 9.041 0 012.861 2.4c.723-.384 1.35-.956 1.653-1.715a4.498 4.498 0 00.322-1.672V3a.75.75 0 01.75-.75A2.25 2.25 0 0116.5 4.5c0 1.152-.26 2.243-.723 3.218-.266.558.107 1.282.725 1.282h3.126c1.026 0 1.945.694 2.054 1.715.045.422.068.85.068 1.285a11.95 11.95 0 01-2.649 7.521c-.388.482-.987.729-1.605.729H13.48c-.483 0-.964-.078-1.423-.23l-3.114-1.04a4.501 4.501 0 00-1.423-.23H5.904M7.864 4.5L6 6.375v11.25c0 .621-.504 1.125-1.125 1.125H3.388c-.621 0-1.125-.504-1.125-1.125V6.375L6 4.5" /></svg></button>
-                    <span class="text-sm text-slate-500">${currentIndex + 1} / ${generatedDeck.length}</span>
-                    <button id="keepCardBtn" class="p-2 rounded-full hover:bg-green-100" title="Keep"><svg class="w-8 h-8 text-green-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M6.633 10.5c.806 0 1.533-.424 2.031-1.08a9.041 9.041 0 012.861-2.4c.723-.384 1.35-.956 1.653-1.715a4.498 4.498 0 00.322-1.672V3a.75.75 0 01.75-.75A2.25 2.25 0 0116.5 4.5c0 1.152-.26 2.243-.723 3.218-.266.558.107 1.282.725 1.282h3.126c1.026 0 1.945.694 2.054 1.715.045.422.068.85.068 1.285a11.95 11.95 0 01-2.649 7.521c-.388.482-.987.729-1.605.729H13.48c-.483 0-.964-.078-1.423-.23l-3.114-1.04a4.501 4.501 0 00-1.423-.23H5.904M6.633 10.5l-1.87-1.87a.75.75 0 00-1.06 1.061l1.87 1.87M6.633 10.5v11.25c0 .621-.504 1.125-1.125 1.125H3.388c-.621 0-1.125-.504-1.125-1.125V10.5" /></svg></button>
-                </div>
-            `;
-
-            const flashcardEl = modalBody.querySelector('.flashcard');
-            flashcardEl.addEventListener('click', () => flashcardEl.classList.toggle('is-flipped'));
-            
-            modalBody.querySelector('#keepCardBtn').addEventListener('click', () => {
-                savedDeck.push(card);
-                currentIndex++;
-                updateCardView();
-            });
-            modalBody.querySelector('#discardCardBtn').addEventListener('click', () => {
-                logEvent('flashcard_feedback', { rating: 'negative', card: card });
-                currentIndex++;
-                updateCardView();
-            });
-         };
-
-         openModal("Curate Your Flashcard Deck", "");
-         updateCardView();
-    }
-
-    async function saveDeck(deck) {
-        if (!currentUser) {
-            showError("You must be logged in to save a deck.");
-            return;
-        }
-         if (deck.length === 0) {
-            showError("There are no cards in your deck to save.");
-            return;
-        }
-
-        try {
-            await addDoc(collection(db, "users", currentUser.uid, "decks"), {
-                title: `Deck from transcript: ${outputEl.textContent.substring(0, 20)}...`,
-                cards: deck,
-                createdAt: serverTimestamp()
-            });
-            logEvent('deck_saved');
-            closeModal();
-            animateText(statusEl, "Flashcard deck saved!");
-        } catch (e) {
-            console.error("Error saving deck: ", e);
-            showError("Could not save deck. Please try again.");
-            logEvent('deck_save_failed', { error: e.message });
-        }
-    }
-
     modalClose.addEventListener('click', closeModal);
     
     updateUI('Initial', 'Ready');

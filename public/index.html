@@ -13,93 +13,76 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
-<body class="bg-slate-100 text-slate-800 flex items-center justify-center min-h-screen p-4">
+<body>
 
-    <!-- Main container for the application -->
-    <div id="app-container" class="w-full max-w-2xl mx-auto p-6 bg-white rounded-lg border border-slate-200 shadow-lg space-y-6 relative">
+    <div id="app-container">
         
-        <!-- Top bar for icons -->
-        <div class="absolute top-0 left-0 w-full flex justify-between items-start px-6 py-5">
-            <!-- API Key Icon and Input -->
+        <div class="header-bar">
             <div id="apiKeyContainer" class="interactive-icon-container">
-                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-animated text-slate-500">
-                    <circle cx="7" cy="12" r="4"></circle>
-                    <line x1="11" y1="12" x2="22" y2="12"></line>
-                    <line x1="14" y1="12" x2="14" y2="16"></line>
-                    <line x1="17" y1="12" x2="17" y2="18"></line>
-                    <line x1="20" y1="12" x2="20" y2="15"></line>
-                </svg>
-                <input type="password" id="apiKeyInput" class="input-base focus:ring-blue-500" placeholder="Enter Session API Key...">
+                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-animated text-slate-500"><circle cx="7" cy="12" r="4"></circle><line x1="11" y1="12" x2="22" y2="12"></line><line x1="14" y1="12" x2="14" y2="16"></line><line x1="17" y1="12" x2="17" y2="18"></line><line x1="20" y1="12" x2="20" y2="15"></line></svg>
+                <input type="password" id="apiKeyInput" class="input-base" placeholder="Enter Session API Key...">
             </div>
 
-            <!-- Login Icon and Inputs -->
-             <div id="loginContainer" class="interactive-icon-container flex-row-reverse">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-animated icon-animated-user text-slate-500 transition-transform duration-300">
-                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                    <circle cx="12" cy="7" r="4"></circle>
-                </svg>
-                <div id="login-form" class="flex flex-col">
-                    <input type="email" id="emailInput" class="login-input text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Email">
-                    <div id="password-wrapper" class="login-form-extra">
-                        <input type="password" id="passwordInput" class="login-input text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Password">
-                    </div>
-                     <div id="auth-buttons" class="login-form-extra space-y-2">
-                        <button id="loginButton" class="w-full text-sm bg-blue-600 text-white py-1.5 rounded-md hover:bg-blue-700">Login / Sign Up</button>
+            <div class="relative">
+                <div id="loginContainer" class="interactive-icon-container">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon-animated icon-animated-user text-slate-500 transition-transform duration-300"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                    <div id="login-form" class="flex flex-col">
+                        <input type="email" id="emailInput" class="login-input text-sm" placeholder="Email">
+                        <div id="password-wrapper" class="login-form-extra">
+                            <input type="password" id="passwordInput" class="login-input text-sm" placeholder="Password">
+                        </div>
+                         <div id="auth-buttons" class="login-form-extra space-y-2">
+                            <button id="loginButton" class="w-full text-sm bg-blue-600 text-white py-1.5 rounded-md hover:bg-blue-700">Login / Sign Up</button>
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- User Info / Logout Button -->
-             <div id="userInfo" class="items-center gap-4">
-                 <span id="userEmail" class="text-sm font-medium text-slate-700"></span>
-                 <button id="historyButton" title="View History" class="text-slate-500 hover:text-blue-600">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
-                 </button>
-                 <button id="settingsButton" title="Settings" class="text-slate-500 hover:text-blue-600">
-                     <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-                 </button>
-                 <button id="logoutButton" class="text-slate-500 hover:text-red-600">
-                     <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
-                 </button>
-             </div>
+                <div id="userInfo" class="hidden items-center gap-4">
+                     <span id="userEmail" class="text-sm font-medium text-slate-700"></span>
+                     <button id="historyButton" title="View History" class="text-slate-500 hover:text-blue-600">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+                     </button>
+                     <button id="settingsButton" title="Settings" class="text-slate-500 hover:text-blue-600">
+                         <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                     </button>
+                     <button id="logoutButton" class="text-slate-500 hover:text-red-600">
+                         <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                     </button>
+                 </div>
+            </div>
         </div>
 
-        <!-- Header -->
-        <div class="text-center pt-16">
+        <div class="header-content">
             <h1 class="text-3xl font-bold text-slate-800">YouTube Learning Assistant</h1>
             <p class="text-sm text-slate-500 mt-1">Capture a video's knowledge. Master it faster.</p>
         </div>
         
-        <!-- Error Message Display -->
         <div id="error-message" class="hidden bg-red-100 border border-red-300 text-red-800 px-4 py-3 rounded-lg" role="alert">
             <strong class="font-bold">Error:</strong>
             <span class="block sm:inline" id="error-text"></span>
         </div>
         
-        <!-- Main Content Area -->
-        <div class="space-y-4">
-            <!-- Recording & Transcription Area -->
-            <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 space-y-4">
-                <div id="transcriptionOutput" class="output-box" placeholder="Your transcript will appear here after recording..."></div>
-                <div class="flex justify-between items-center">
+        <div class="main-content">
+            <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 flex flex-col h-full">
+                <div id="transcriptionOutput" class="output-box flex-grow" placeholder="Your transcript will appear here after recording..."></div>
+                <div class="flex justify-between items-center mt-4">
                     <p class="text-sm text-slate-500 h-5">Status: <span id="status" class="font-semibold text-blue-700">Ready</span></p>
                     <div class="flex items-center gap-2">
-                        <button id="recordButton" class="btn btn-primary">Record</button>
-                        <button id="pauseButton" class="btn btn-secondary btn-disabled" disabled>Pause</button>
-                        <button id="transcribeButton" class="btn btn-secondary btn-disabled" disabled>Transcribe</button>
+                        <button id="recordButton" class="btn-icon bg-red-600 hover:bg-red-700 focus:ring-red-500" title="Record"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle></svg></button>
+                        <button id="pauseButton" class="btn-icon bg-gray-500 hover:bg-gray-600 focus:ring-gray-400 btn-disabled" disabled title="Pause"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h4v16H6z"/><path d="M14 4h4v16h-4z"/></svg></button>
+                        <button id="transcribeButton" class="btn-icon bg-blue-600 hover:bg-blue-700 focus:ring-blue-500 btn-disabled" disabled title="Transcribe"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg></button>
                     </div>
                 </div>
             </div>
+        </div>
 
-            <!-- AI Actions Dropdown -->
-            <div class="relative inline-block text-left w-full">
-                <div>
-                    <button type="button" id="aiDropdownButton" class="btn btn-secondary w-full flex justify-center items-center gap-2 btn-disabled" disabled>
-                        AI Tools
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                    </button>
-                </div>
-                <div id="aiDropdownMenu" class="origin-top-right absolute right-0 mt-2 w-full rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none hidden" role="menu">
+        <div class="footer-bar">
+            <div class="relative inline-block text-left">
+                <button type="button" id="aiDropdownButton" class="btn btn-secondary w-full flex justify-center items-center gap-2 btn-disabled" disabled>
+                    AI Tools
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </button>
+                <div id="aiDropdownMenu" class="origin-bottom-right absolute right-0 bottom-full mb-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none hidden" role="menu">
                     <div class="py-1" role="none">
                         <p class="px-4 py-2 text-xs text-slate-400 uppercase">Freemium Features</p>
                         <button data-prompt-id="summarize" class="ai-button">Summarize</button>
@@ -113,13 +96,11 @@
             </div>
         </div>
 
-        <!-- Debug Report Button -->
-        <button id="debugButton" class="fixed bottom-4 right-4 bg-slate-700 text-white p-2 rounded-full shadow-lg hover:bg-slate-800 transition-colors" title="Generate Debug Report">
+        <button id="debugButton" class="fixed bottom-4 right-4 bg-slate-800 text-white p-2 rounded-full shadow-lg hover:bg-slate-900 transition-colors" title="Generate Debug Report">
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4.5l-2.7 5.4-5.4 2.7 5.4 2.7 2.7 5.4 2.7-5.4 5.4-2.7-5.4-2.7-2.7-5.4zM7 21l-4-4"/></svg>
         </button>
     </div>
 
-    <!-- Modal for AI Results & Settings -->
     <div id="modal-backdrop" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 hidden opacity-0">
         <div id="modal-content" class="bg-white rounded-lg shadow-xl w-full max-w-lg p-6 transform scale-95 opacity-0">
             <div class="flex justify-between items-center mb-4">
