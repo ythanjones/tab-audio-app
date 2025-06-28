@@ -1,13 +1,29 @@
+// =================================================================
+// LIBRARY PAGE SCRIPT (FUNCTIONAL)
+// =================================================================
+// This script handles all interactivity for the library.html page.
+// It connects to Firebase to fetch, create, update, and delete
+// collections and the items (transcripts, flashcard decks) within them.
+// =================================================================
+
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js";
-import { getAnalytics, logEvent as fbLogEvent } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-analytics.js";
-import { getFirestore, collection, addDoc, doc, setDoc, getDoc, serverTimestamp, getDocs } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-firestore.js";
 import { 
     getAuth, 
-    onAuthStateChanged,
-    createUserWithEmailAndPassword,
-    signInWithEmailAndPassword,
-    signOut
+    onAuthStateChanged 
 } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-auth.js";
+import { 
+    getFirestore, 
+    collection, 
+    query, 
+    where, 
+    getDocs, 
+    addDoc, 
+    doc, 
+    deleteDoc,
+    writeBatch,
+    orderBy,
+    serverTimestamp
+} from "https://www.gstatic.com/firebasejs/11.9.1/firebase-firestore.js";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -20,469 +36,249 @@ const firebaseConfig = {
     measurementId: "G-BDW8YWD1QW"
 };
 
-// --- This wrapper ensures the code runs only after the page is fully loaded ---
+
 document.addEventListener('DOMContentLoaded', () => {
 
-    // =================================================================
-    // DIAGNOSTICS & LOGGING SYSTEM
-    // =================================================================
-    const sessionLog = [];
-    const originalConsoleLog = console.log;
-    const originalConsoleError = console.error;
-
-    console.log = function(...args) {
-        sessionLog.push({ timestamp: new Date().toISOString(), level: 'LOG', message: args.join(' ') });
-        originalConsoleLog.apply(console, args);
-    };
-
-    console.error = function(...args) {
-        sessionLog.push({ timestamp: new Date().toISOString(), level: 'ERROR', message: args.join(' ') });
-        originalConsoleError.apply(console, args);
-    };
-    
-    // Custom event logger
-    function logEvent(name, params = {}) {
-        const eventData = { timestamp: new Date().toISOString(), level: 'EVENT', name, params };
-        sessionLog.push(eventData);
-        originalConsoleLog(`EVENT: ${name}`, params);
-        if (analytics) {
-            fbLogEvent(analytics, name, params);
-        }
-    }
-
-    // --- State variables ---
-    let mediaRecorder;
-    let audioStream;
-    let audioChunks = [];
+    // --- STATE VARIABLES ---
     let currentUser = null;
-    let activeApiKey = null;
-    let firebaseInitialized = false;
-    let analytics, db, auth;
-    let promptsCache = new Map();
+    let db, auth;
+    let activeCollectionId = null;
 
-    // --- DOM element references ---
-    const recordButton = document.getElementById('recordButton');
-    const stopButton = document.getElementById('stopButton');
-    const summarizeButton = document.getElementById('summarizeButton');
-    const outputEl = document.getElementById('transcriptionOutput');
-    const loginContainer = document.getElementById('loginContainer');
-    const userInfo = document.getElementById('userInfo');
-    const userEmailEl = document.getElementById('userEmail');
-    const logoutButton = document.getElementById('logoutButton');
-    const aiDropdownButton = document.getElementById('aiDropdownButton');
-    const aiDropdownMenu = document.getElementById('aiDropdownMenu');
-    const aiButtons = document.querySelectorAll('.ai-button');
-    const modalBackdrop = document.getElementById('modal-backdrop');
-    const modalContent = document.getElementById('modal-content');
-    const modalTitle = document.getElementById('modal-title');
-    const modalBody = document.getElementById('modal-body');
-    const modalClose = document.getElementById('modal-close');
-    const debugButton = document.getElementById('debugButton');
+    // --- DOM ELEMENT REFERENCES ---
+    const collectionsListEl = document.getElementById('collectionsList');
+    const itemsListEl = document.getElementById('itemsList');
+    const currentCollectionTitleEl = document.getElementById('current-collection-title');
+    const emptyStateEl = document.getElementById('empty-state');
+    const newCollectionBtn = document.getElementById('newCollectionBtn');
+    const deleteCollectionBtn = document.getElementById('deleteCollectionBtn');
 
-    // =================================================================
-    // INITIALIZATION & AUTHENTICATION
-    // =================================================================
 
+    // --- INITIALIZATION ---
     try {
-        if (!firebaseConfig.apiKey) {
-             throw new Error("Firebase config object is empty.");
-        }
         const app = initializeApp(firebaseConfig);
         auth = getAuth(app);
-        analytics = getAnalytics(app);
         db = getFirestore(app);
-        firebaseInitialized = true;
-        logEvent('app_initialized');
+        console.log("Library page Firebase initialized successfully.");
 
-        loadPrompts();
-
-        onAuthStateChanged(auth, async (user) => {
-            currentUser = user;
+        onAuthStateChanged(auth, (user) => {
             if (user) {
-                logEvent('auth_state_changed', { status: 'logged_in', userId: user.uid });
-                userInfo.classList.remove('hidden');
-                loginContainer.innerHTML = ''; 
-                loginContainer.classList.add('hidden');
-                userEmailEl.textContent = user.email;
-                await fetchUserApiKey();
+                currentUser = user;
+                loadUserLibrary(); 
             } else {
-                logEvent('auth_state_changed', { status: 'logged_out' });
-                userInfo.classList.add('hidden');
-                loginContainer.classList.remove('hidden');
-                renderLoginButton();
-                activeApiKey = null;
+                currentUser = null;
+                window.location.href = 'index.html';
             }
-            updateUI();
+        });
+    } catch (error) {
+        console.error("Firebase Initialization Error on Library Page:", error);
+        document.body.innerHTML = '<h1>Error: Could not initialize application.</h1>';
+    }
+
+
+    // =================================================================
+    // CORE LOGIC
+    // =================================================================
+
+    async function loadUserLibrary() {
+        if (!currentUser) return;
+        collectionsListEl.innerHTML = '<li>Loading collections...</li>';
+
+        const collectionsRef = collection(db, "users", currentUser.uid, "collections");
+        const q = query(collectionsRef, orderBy("createdAt", "desc"));
+        
+        try {
+            const querySnapshot = await getDocs(q);
+            collectionsListEl.innerHTML = ''; // Clear loading message
+            
+            if (querySnapshot.empty) {
+                // If no collections, create a default one
+                await createNewCollection("My First Collection", true);
+                return; // The function will be re-triggered by the creation
+            }
+            
+            const collections = [];
+            querySnapshot.forEach((doc) => {
+                collections.push({ id: doc.id, ...doc.data() });
+            });
+
+            collections.forEach(col => renderCollection(col));
+
+            // Automatically select the first collection
+            if (collections.length > 0) {
+                loadCollectionItems(collections[0].id, collections[0].name);
+            }
+
+        } catch (error) {
+            console.error("Error loading collections: ", error);
+            collectionsListEl.innerHTML = '<li>Error loading collections.</li>';
+        }
+    }
+
+    function renderCollection(collectionData) {
+        const li = document.createElement('li');
+        li.className = 'collection-item';
+        li.dataset.id = collectionData.id;
+
+        const a = document.createElement('a');
+        a.innerHTML = `<i data-feather="folder"></i><span>${collectionData.name}</span>`;
+        a.onclick = () => {
+            loadCollectionItems(collectionData.id, collectionData.name);
+        };
+        li.appendChild(a);
+        collectionsListEl.appendChild(li);
+        feather.replace(); // Re-initialize icons
+    }
+
+    async function loadCollectionItems(collectionId, collectionName) {
+        if (!currentUser) return;
+        activeCollectionId = collectionId;
+
+        // Update UI
+        currentCollectionTitleEl.textContent = collectionName;
+        document.querySelectorAll('.collection-item').forEach(item => {
+            item.classList.toggle('is-active', item.dataset.id === collectionId);
         });
 
-    } catch (error) {
-        console.error("Firebase Initialization Error:", error.message);
-        openModal("Critical Error", `Could not initialize the application. Please check your Firebase configuration. <br><br><strong>Error:</strong> ${error.message}`);
-    }
-    
-    function renderLoginButton() {
-        loginContainer.innerHTML = `<button id="loginPromptButton" class="btn btn-secondary">Login / Sign Up</button>`;
-        document.getElementById('loginPromptButton').addEventListener('click', openLoginModal);
+        itemsListEl.innerHTML = '<li>Loading items...</li>';
+        emptyStateEl.classList.add('hidden');
+
+        try {
+            const items = [];
+            // Query transcripts
+            const transcriptsRef = collection(db, "users", currentUser.uid, "transcripts");
+            const tq = query(transcriptsRef, where("collectionId", "==", collectionId), orderBy("createdAt", "desc"));
+            const tSnapshot = await getDocs(tq);
+            tSnapshot.forEach(doc => items.push({ id: doc.id, type: 'transcript', ...doc.data() }));
+
+            // Query flashcard decks (future)
+            // const decksRef = collection(db, "users", currentUser.uid, "flashcardDecks");
+            // const dq = query(decksRef, where("collectionId", "==", collectionId));
+            // const dSnapshot = await getDocs(dq);
+            // dSnapshot.forEach(doc => items.push({ id: doc.id, type: 'deck', ...doc.data() }));
+
+            itemsListEl.innerHTML = ''; // Clear loading message
+
+            if (items.length === 0) {
+                emptyStateEl.classList.remove('hidden');
+            } else {
+                items.forEach(item => renderItem(item));
+            }
+
+        } catch (error) {
+            console.error(`Error loading items for collection ${collectionId}:`, error);
+            itemsListEl.innerHTML = '<li>Error loading items.</li>';
+        }
     }
 
-    function openLoginModal() {
-        logEvent('ui_action', { component: 'login_modal', action: 'open' });
-        const loginHtml = `
-            <div class="space-y-4">
-                <div>
-                    <label for="emailInput" class="block text-sm font-medium text-slate-300">Email</label>
-                    <input type="email" id="emailInput" class="w-full mt-1 bg-slate-900 border border-slate-600 rounded-md p-2 focus:ring-amber-500 focus:border-amber-500">
+    function renderItem(itemData) {
+        const itemDiv = document.createElement('div');
+        itemDiv.className = 'library-item';
+        itemDiv.dataset.id = itemData.id;
+
+        const iconType = itemData.type === 'transcript' ? 'file-text' : 'layers';
+        const badgeClass = itemData.type === 'transcript' ? 'transcript-badge' : 'flashcard-badge';
+        const badgeText = itemData.type === 'transcript' ? 'Transcript' : 'Flashcard Deck';
+
+        itemDiv.innerHTML = `
+            <div class="item-main">
+                <i data-feather="${iconType}" class="item-icon"></i>
+                <div class="item-details">
+                    <p class="item-title">${itemData.title}</p>
+                    <span class="item-badge ${badgeClass}">${badgeText}</span>
                 </div>
-                <div>
-                    <label for="passwordInput" class="block text-sm font-medium text-slate-300">Password</label>
-                    <input type="password" id="passwordInput" class="w-full mt-1 bg-slate-900 border border-slate-600 rounded-md p-2 focus:ring-amber-500 focus:border-amber-500">
-                </div>
-                <button id="loginSubmitButton" class="btn btn-primary w-full">Login / Sign Up</button>
+            </div>
+            <div class="item-actions">
+                <button class="btn-icon btn-delete-item" title="Delete"><i data-feather="x"></i></button>
             </div>
         `;
-        openModal("Login", loginHtml);
 
-        document.getElementById('loginSubmitButton').addEventListener('click', handleAuth);
-    }
-
-    async function handleAuth() {
-        const email = document.getElementById('emailInput').value;
-        const password = document.getElementById('passwordInput').value;
-        if (!email || !password) {
-            alert("Please enter both email and password.");
-            return;
-        }
-        logEvent('auth_attempt', { email: email });
-        try {
-            await signInWithEmailAndPassword(auth, email, password);
-            logEvent('auth_success', { type: 'login' });
-            closeModal();
-        } catch (error) {
-            if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
-                try {
-                    await createUserWithEmailAndPassword(auth, email, password);
-                    logEvent('auth_success', { type: 'signup' });
-                    closeModal();
-                } catch (signUpError) {
-                    logEvent('auth_failure', { type: 'signup', error: signUpError.message });
-                    alert(`Signup failed: ${signUpError.message}`);
-                }
-            } else {
-                logEvent('auth_failure', { type: 'login', error: error.message });
-                alert(`Login failed: ${error.message}`);
-            }
-        }
-    }
-
-    function handleLogout() {
-        logEvent('logout_attempt');
-        signOut(auth).catch(error => {
-            logEvent('logout_failure', { error: error.message });
-            openModal("Error", `Logout failed: ${error.message}`);
-        });
-    }
-    
-    async function fetchUserApiKey() {
-        if (!currentUser) return;
-        logEvent('api_key_fetch_attempt');
-        try {
-            const userDocRef = doc(db, "users", currentUser.uid);
-            const docSnap = await getDoc(userDocRef);
-            if (docSnap.exists() && docSnap.data().geminiApiKey) {
-                activeApiKey = docSnap.data().geminiApiKey;
-                logEvent('api_key_fetch_success', { found: true });
-            } else {
-                activeApiKey = null;
-                logEvent('api_key_fetch_success', { found: false });
-            }
-        } catch (e) {
-            console.error("Error fetching API key: ", e);
-            activeApiKey = null;
-            logEvent('api_key_fetch_failure', { error: e.message });
-        }
-    }
-    
-    async function loadPrompts() {
-        if (!firebaseInitialized) return;
-        logEvent('prompts_load_attempt');
-        try {
-            const querySnapshot = await getDocs(collection(db, "prompts"));
-            querySnapshot.forEach((doc) => {
-                promptsCache.set(doc.id, doc.data().text);
-            });
-            logEvent('prompts_load_success', { count: promptsCache.size });
-        } catch(e) {
-            console.error("Could not load prompts from Firestore:", e);
-            logEvent('prompts_load_failure', { error: e.message });
-        }
-    }
-
-    // =================================================================
-    // CORE FUNCTIONALITY: RECORDING & TRANSCRIPTION
-    // =================================================================
-    
-    async function startRecording() {
-        logEvent('recording_start_attempt');
-        if (!getApiKey()) {
-            logEvent('recording_start_failure', { reason: 'api_key_missing' });
-            openModal("API Key Required", "Please log in and set your Gemini API key to use this application.");
-            return;
-        }
-        
-        if (mediaRecorder && mediaRecorder.state === "recording") return;
-
-        try {
-            const displayStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
-            if (displayStream.getAudioTracks().length === 0) {
-                displayStream.getTracks().forEach(track => track.stop());
-                logEvent('recording_start_failure', { reason: 'no_audio_track' });
-                openModal("Audio Error", "No audio track found. Please ensure you share screen or tab audio.");
-                return;
-            }
-
-            audioStream = new MediaStream(displayStream.getAudioTracks());
-            audioChunks = [];
-
-            mediaRecorder = new MediaRecorder(audioStream, { mimeType: 'audio/webm' });
-            mediaRecorder.ondataavailable = (event) => {
-                if (event.data.size > 0) audioChunks.push(event.data);
-            };
-
-            audioStream.getTracks()[0].onended = () => stopRecording();
-
-            mediaRecorder.start();
-            logEvent('recording_start_success');
-            updateUI();
-
-        } catch (err) {
-            console.error("Error starting recording:", err);
-            logEvent('recording_start_failure', { reason: 'permission_denied_or_unknown', error: err.message });
-            openModal("Recording Error", `Failed to start recording. Please grant permission. Error: ${err.message}`);
-        }
-    }
-
-    async function stopRecording() {
-        if (!mediaRecorder || mediaRecorder.state === "inactive") return;
-        
-        logEvent('recording_stop_attempt');
-        mediaRecorder.stop();
-        if (audioStream) {
-            audioStream.getTracks().forEach(track => track.stop());
-        }
-        
-        updateUI();
-
-        if (audioChunks.length > 0) {
-            logEvent('transcription_initiated');
-            transcribeAudio();
-        } else {
-            logEvent('recording_stop_complete', { transcribed: false, reason: 'no_audio_chunks' });
-        }
-    }
-    
-    async function transcribeAudio() {
-        outputEl.textContent = "Transcribing, please wait...";
-        const apiKey = getApiKey();
-        if (!apiKey) return;
-
-        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-        const base64Audio = await blobToBase64(audioBlob);
-
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-        const payload = { 
-            contents: [{ 
-                parts: [
-                    { text: "Transcribe the following audio recording accurately." },
-                    { inline_data: { mime_type: "audio/webm", data: base64Audio } }
-                ] 
-            }] 
+        itemDiv.querySelector('.btn-delete-item').onclick = (e) => {
+            e.stopPropagation();
+            deleteItem(itemData.id, itemData.type);
         };
 
+        itemsListEl.appendChild(itemDiv);
+        feather.replace();
+    }
+    
+    async function createNewCollection(name, selectAfterCreating = false) {
+        if (!currentUser || !name) return;
+        
         try {
-            const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-            const result = await response.json();
-            
-            if (!response.ok) {
-                 throw new Error(result.error?.message || `API Error: ${response.status}`);
-            }
-
-            if (result.candidates && result.candidates[0].content.parts[0].text) {
-                const transcript = result.candidates[0].content.parts[0].text;
-                outputEl.textContent = transcript;
-                logEvent('transcription_success', { character_length: transcript.length });
-            } else {
-                throw new Error('Invalid API response structure.');
-            }
-        } catch (err) {
-            outputEl.textContent = `Transcription Failed: ${err.message}`;
-            logEvent('transcription_failure', { error: err.message });
-        } finally {
-            updateUI();
-        }
-    }
-
-    // =================================================================
-    // AI ACTIONS & UI
-    // =================================================================
-    
-    function handleSummarize() {
-        const promptId = 'summarize';
-        const promptTemplate = promptsCache.get(promptId);
-        if (!promptTemplate) {
-            openModal("Error", "Could not find the 'summarize' prompt.");
-            logEvent('ai_action_failure', { prompt_id: promptId, reason: 'template_not_found' });
-            return;
-        }
-        logEvent('ai_action_initiated', { prompt_id: promptId });
-        generateTextWithGemini(promptTemplate, "Summary", promptId);
-    }
-    
-    async function generateTextWithGemini(promptTemplate, taskTitle, promptId) {
-        const apiKey = getApiKey();
-        if (!apiKey) return;
-        
-        openModal(taskTitle, '<div class="flex justify-center items-center"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div></div>');
-        
-        const transcript = outputEl.textContent;
-        const finalPrompt = promptTemplate.replace('{transcript}', transcript);
-
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-        const payload = { contents: [{ parts: [{ text: finalPrompt }] }] };
-
-        try {
-            const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-            const result = await response.json();
-
-            if (!response.ok) {
-                 throw new Error(result.error?.message || `API Error: ${response.status}`);
-            }
-
-            if (result.candidates && result.candidates[0].content.parts[0].text) {
-                const generatedText = result.candidates[0].content.parts[0].text;
-                animateText(modalBody, generatedText);
-                logEvent('ai_action_success', { prompt_id: promptId });
-            } else {
-                throw new Error('Invalid API response.');
-            }
-        } catch (err) {
-            modalBody.innerHTML = `<p class="text-red-400">Could not generate ${taskTitle.toLowerCase()}. Error: ${err.message}</p>`;
-            logEvent('ai_action_failure', { prompt_id: promptId, error: err.message });
-        }
-    }
-
-    // =================================================================
-    // UI & HELPER FUNCTIONS
-    // =================================================================
-    
-    function updateUI() {
-        const isRecording = mediaRecorder && mediaRecorder.state === 'recording';
-        const hasTranscript = outputEl.textContent && !outputEl.textContent.startsWith("Your transcript") && !outputEl.textContent.startsWith("Transcribing");
-
-        recordButton.disabled = isRecording;
-        recordButton.classList.toggle('recording', isRecording);
-        recordButton.querySelector('span').textContent = isRecording ? 'Recording...' : 'Record';
-
-        stopButton.disabled = !isRecording;
-        summarizeButton.disabled = !hasTranscript || isRecording;
-        aiDropdownButton.disabled = !hasTranscript || isRecording;
-    }
-
-    function getApiKey() {
-        if (activeApiKey) return activeApiKey;
-        return null;
-    }
-
-    function blobToBase64(blob) {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(blob);
-            reader.onloadend = () => resolve(reader.result.split(',')[1]);
-            reader.onerror = reject;
-        });
-    }
-    
-    function animateText(element, text) {
-        element.innerHTML = text.replace(/\*/g, '').replace(/\n/g, '<br>');
-    }
-
-    function openModal(title, content) {
-        modalTitle.textContent = title;
-        modalBody.innerHTML = content;
-        modalBackdrop.classList.remove('hidden');
-        setTimeout(() => {
-            modalBackdrop.classList.add('opacity-100');
-            modalContent.classList.add('scale-100', 'opacity-100');
-        }, 10);
-    }
-
-    function closeModal() {
-        modalBackdrop.classList.remove('opacity-100');
-        modalContent.classList.remove('scale-100', 'opacity-100');
-        setTimeout(() => modalBackdrop.classList.add('hidden'), 300);
-    }
-    
-    function openDebugModal() {
-        logEvent('debug_modal_opened');
-        const reportHtml = `
-            <div id="debug-report-content">${JSON.stringify(sessionLog, null, 2)}</div>
-            <button id="copyLogBtn" class="btn">Copy to Clipboard</button>
-        `;
-        openModal("Session Debug Log", reportHtml);
-        
-        document.getElementById('copyLogBtn').addEventListener('click', () => {
-            const logText = JSON.stringify(sessionLog, null, 2);
-            navigator.clipboard.writeText(logText).then(() => {
-                alert('Log copied to clipboard!');
-                logEvent('debug_log_copied');
-            }).catch(err => {
-                console.error('Failed to copy log', err);
-                logEvent('debug_log_copy_failed', { error: err.message });
+            const docRef = await addDoc(collection(db, "users", currentUser.uid, "collections"), {
+                name: name,
+                createdAt: serverTimestamp()
             });
-        });
+
+            const newCollection = { id: docRef.id, name: name };
+            renderCollection(newCollection);
+            
+            if (selectAfterCreating) {
+                loadCollectionItems(newCollection.id, newCollection.name);
+            }
+        } catch (error) {
+            console.error("Error creating new collection: ", error);
+            alert("Could not create collection.");
+        }
     }
-    
+
+    async function deleteItem(itemId, itemType) {
+        if (!currentUser || !confirm(`Are you sure you want to delete this ${itemType}?`)) return;
+
+        const collectionName = itemType === 'transcript' ? 'transcripts' : 'flashcardDecks';
+        try {
+            await deleteDoc(doc(db, "users", currentUser.uid, collectionName, itemId));
+            // Refresh the view
+            const currentCollectionName = currentCollectionTitleEl.textContent;
+            loadCollectionItems(activeCollectionId, currentCollectionName);
+        } catch (error) {
+            console.error("Error deleting item:", error);
+            alert("Could not delete item.");
+        }
+    }
+
+    async function deleteActiveCollection() {
+        if (!currentUser || !activeCollectionId) return;
+        if (!confirm(`Are you sure you want to delete this entire collection and all its contents? This cannot be undone.`)) return;
+
+        try {
+            const batch = writeBatch(db);
+
+            // Delete all items in the collection
+            const transcriptsRef = collection(db, "users", currentUser.uid, "transcripts");
+            const tq = query(transcriptsRef, where("collectionId", "==", activeCollectionId));
+            const tSnapshot = await getDocs(tq);
+            tSnapshot.forEach(doc => batch.delete(doc.ref));
+
+            // Add future item types here (e.g., flashcard decks)
+
+            // Delete the collection itself
+            const collectionDocRef = doc(db, "users", currentUser.uid, "collections", activeCollectionId);
+            batch.delete(collectionDocRef);
+
+            await batch.commit();
+
+            // Reload the entire library to refresh the state
+            loadUserLibrary();
+
+        } catch (error) {
+            console.error("Error deleting collection:", error);
+            alert("Could not delete collection.");
+        }
+    }
+
+
     // =================================================================
     // EVENT LISTENERS
     // =================================================================
-    recordButton.addEventListener('click', startRecording);
-    stopButton.addEventListener('click', stopRecording);
-    summarizeButton.addEventListener('click', handleSummarize);
-    logoutButton.addEventListener('click', handleLogout);
-    debugButton.addEventListener('click', openDebugModal);
-    
-    aiDropdownButton.addEventListener('click', (e) => {
-        const isExpanded = aiDropdownButton.getAttribute('aria-expanded') === 'true';
-        aiDropdownButton.setAttribute('aria-expanded', !isExpanded);
-        aiDropdownMenu.classList.toggle('hidden');
-    });
 
-    document.addEventListener('click', (e) => {
-        if (!aiDropdownButton.contains(e.target) && !aiDropdownMenu.contains(e.target)) {
-            aiDropdownMenu.classList.add('hidden');
-            aiDropdownButton.setAttribute('aria-expanded', 'false');
+    newCollectionBtn.addEventListener('click', () => {
+        const name = prompt("Enter a name for your new collection:");
+        if (name) {
+            createNewCollection(name);
         }
     });
 
-    aiButtons.forEach(button => {
-        button.addEventListener('click', () => {
-            const promptId = button.dataset.promptId;
-            const taskTitle = button.textContent;
-            const promptTemplate = promptsCache.get(promptId);
+    deleteCollectionBtn.addEventListener('click', deleteActiveCollection);
 
-            if (!promptTemplate) {
-                openModal("Error", `Prompt '${promptId}' not found.`);
-                return;
-            }
-            generateTextWithGemini(promptTemplate, taskTitle, promptId);
-            aiDropdownMenu.classList.add('hidden');
-            aiDropdownButton.setAttribute('aria-expanded', 'false');
-        });
-    });
-
-    modalClose.addEventListener('click', closeModal);
-    modalBackdrop.addEventListener('click', (e) => {
-        if (e.target === modalBackdrop) closeModal();
-    });
-    
-    updateUI();
 });
