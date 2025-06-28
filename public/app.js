@@ -238,6 +238,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             audioStream = new MediaStream(displayStream.getAudioTracks());
+
+            // --- THIS IS THE FIX ---
+            // Immediately stop the video track from the original stream, which will
+            // remove the browser's "sharing" indicator without affecting the audio capture.
+            displayStream.getVideoTracks().forEach(track => track.stop());
+            // --------------------
+
             audioChunks = [];
 
             mediaRecorder = new MediaRecorder(audioStream, { mimeType: 'audio/webm' });
@@ -245,7 +252,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (event.data.size > 0) audioChunks.push(event.data);
             };
 
+            // When the audio track itself ends (e.g., from the browser UI), stop our recording.
             audioStream.getTracks()[0].onended = () => stopRecording();
+            
             mediaRecorder.start(1000); 
             
             logEvent('recording_start_success');

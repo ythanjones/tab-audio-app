@@ -1014,3 +1014,18 @@ body {
     text-align: center;
     margin-top: 0.5rem;
 }
+/* --- FIX: Text Truncation for Library Page --- */
+
+/* Truncates long collection names in the sidebar */
+.collection-item a span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Truncates long item titles in the main content panel */
+.item-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
