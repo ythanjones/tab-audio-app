@@ -25,12 +25,13 @@
             <div id="loginContainer">
                 <!-- Simplified Login: Will be handled by JS -->
             </div>
-            <div id="userInfo" class="hidden">
-                <span id="userEmail" class="user-email"></span>
-                <a href="library.html" id="libraryLink" class="library-link" title="My Library">
+            <!-- The #userInfo div is now a simple flex container for the new layout -->
+            <div id="userInfo" class="hidden"> 
+                <span id="userEmail" class="user-email-box"></span>
+                <a href="library.html" id="libraryLink" class="header-icon-button" title="My Library">
                     <i data-feather="book-open"></i>
                 </a>
-                <button id="logoutButton" class="logout-button" title="Logout">
+                <button id="logoutButton" class="header-icon-button" title="Logout">
                      <i data-feather="log-out"></i>
                 </button>
             </div>
