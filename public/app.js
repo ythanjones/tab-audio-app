@@ -50,7 +50,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // DOM element references
     const appContainer = document.getElementById('app-container');
-    const startButton = document.getElementById('recordButton');
+    const recordButton = document.getElementById('recordButton');
     const pauseButton = document.getElementById('pauseButton');
     const transcribeButton = document.getElementById('transcribeButton');
     const statusEl = document.getElementById('status');
@@ -97,8 +97,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let firebaseInitialized = false;
     let analytics, db, auth;
     let recordingStartTime;
-    let recordingFeedbackInterval;
-    const promptsCache = new Map();
 
     // Initialize Firebase
     try {
@@ -287,13 +285,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const isPaused = status === 'Paused';
         const hasAudio = audioChunks.length > 0;
 
-        startButton.textContent = isPaused ? 'Resume' : 'Record';
-        startButton.disabled = isRecording && !isPaused;
+        recordButton.textContent = isPaused ? 'Resume' : 'Record';
         
+        recordButton.disabled = isRecording && !isPaused;
         pauseButton.disabled = !isRecording || isPaused;
         transcribeButton.disabled = !hasAudio || isRecording;
         
-        [startButton, pauseButton, transcribeButton].forEach(btn => {
+        [recordButton, pauseButton, transcribeButton].forEach(btn => {
              btn.classList.toggle('btn-disabled', btn.disabled);
         });
     }
@@ -398,6 +396,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const apiKey = getApiKey();
         if (!apiKey) return;
 
+        updateUI('Transcribing...');
         const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
         const payload = { contents: [{ parts: [{ text: "Transcribe the following audio recording." }, { inline_data: { mime_type: "audio/webm", data: base64Audio } }] }] };
 
@@ -714,7 +713,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Event Listeners ---
-    startButton.addEventListener('click', handleStartClick);
+    recordButton.addEventListener('click', handleStartClick);
     pauseButton.addEventListener('click', handlePauseClick);
     transcribeButton.addEventListener('click', handleTranscribeClick);
     saveButton.addEventListener('click', saveTranscript);
