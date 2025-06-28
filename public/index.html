@@ -7,7 +7,7 @@
     <!-- Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Custom Stylesheet -->
-    <link rel="stylesheet" href="styles.css?v=2.0"> <!-- Version updated to v2.0 -->
+    <link rel="stylesheet" href="styles.css?v=2.1"> <!-- Version updated to v2.1 -->
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -84,6 +84,11 @@
         </footer>
 
     </div> <!-- End App Container -->
+    
+    <!-- Floating Debug Button -->
+    <button id="debugButton" class="debug-button" title="Generate Debug Report">
+        <i data-feather="bug"></i>
+    </button>
 
     <!-- Modal for displaying summaries, errors, etc. -->
     <div id="modal-backdrop" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 hidden opacity-0">

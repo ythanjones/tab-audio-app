@@ -23,39 +23,61 @@ const firebaseConfig = {
 // --- This wrapper ensures the code runs only after the page is fully loaded ---
 document.addEventListener('DOMContentLoaded', () => {
 
+    // =================================================================
+    // DIAGNOSTICS & LOGGING SYSTEM
+    // =================================================================
+    const sessionLog = [];
+    const originalConsoleLog = console.log;
+    const originalConsoleError = console.error;
+
+    console.log = function(...args) {
+        sessionLog.push({ timestamp: new Date().toISOString(), level: 'LOG', message: args.join(' ') });
+        originalConsoleLog.apply(console, args);
+    };
+
+    console.error = function(...args) {
+        sessionLog.push({ timestamp: new Date().toISOString(), level: 'ERROR', message: args.join(' ') });
+        originalConsoleError.apply(console, args);
+    };
+    
+    // Custom event logger
+    function logEvent(name, params = {}) {
+        const eventData = { timestamp: new Date().toISOString(), level: 'EVENT', name, params };
+        sessionLog.push(eventData);
+        originalConsoleLog(`EVENT: ${name}`, params);
+        if (analytics) {
+            fbLogEvent(analytics, name, params);
+        }
+    }
+
     // --- State variables ---
     let mediaRecorder;
     let audioStream;
     let audioChunks = [];
-    let animationTimeout;
     let currentUser = null;
     let activeApiKey = null;
     let firebaseInitialized = false;
     let analytics, db, auth;
     let promptsCache = new Map();
 
-    // --- DOM element references (Updated for Redesign) ---
+    // --- DOM element references ---
     const recordButton = document.getElementById('recordButton');
     const stopButton = document.getElementById('stopButton');
     const summarizeButton = document.getElementById('summarizeButton');
     const outputEl = document.getElementById('transcriptionOutput');
-    
     const loginContainer = document.getElementById('loginContainer');
     const userInfo = document.getElementById('userInfo');
     const userEmailEl = document.getElementById('userEmail');
     const logoutButton = document.getElementById('logoutButton');
-
     const aiDropdownButton = document.getElementById('aiDropdownButton');
     const aiDropdownMenu = document.getElementById('aiDropdownMenu');
     const aiButtons = document.querySelectorAll('.ai-button');
-
     const modalBackdrop = document.getElementById('modal-backdrop');
     const modalContent = document.getElementById('modal-content');
     const modalTitle = document.getElementById('modal-title');
     const modalBody = document.getElementById('modal-body');
-    const modalFeedback = document.getElementById('modal-feedback');
     const modalClose = document.getElementById('modal-close');
-
+    const debugButton = document.getElementById('debugButton');
 
     // =================================================================
     // INITIALIZATION & AUTHENTICATION
@@ -70,27 +92,27 @@ document.addEventListener('DOMContentLoaded', () => {
         analytics = getAnalytics(app);
         db = getFirestore(app);
         firebaseInitialized = true;
-        console.log("Firebase initialized successfully.");
+        logEvent('app_initialized');
 
         loadPrompts();
 
         onAuthStateChanged(auth, async (user) => {
             currentUser = user;
             if (user) {
-                // User is signed in
+                logEvent('auth_state_changed', { status: 'logged_in', userId: user.uid });
                 userInfo.classList.remove('hidden');
-                loginContainer.innerHTML = ''; // Clear login prompt
+                loginContainer.innerHTML = ''; 
                 loginContainer.classList.add('hidden');
                 userEmailEl.textContent = user.email;
                 await fetchUserApiKey();
             } else {
-                // User is signed out
+                logEvent('auth_state_changed', { status: 'logged_out' });
                 userInfo.classList.add('hidden');
                 loginContainer.classList.remove('hidden');
                 renderLoginButton();
                 activeApiKey = null;
             }
-            updateUI(); // Update UI based on auth state
+            updateUI();
         });
 
     } catch (error) {
@@ -98,18 +120,13 @@ document.addEventListener('DOMContentLoaded', () => {
         openModal("Critical Error", `Could not initialize the application. Please check your Firebase configuration. <br><br><strong>Error:</strong> ${error.message}`);
     }
     
-    /**
-     * Renders the login button for signed-out users.
-     */
     function renderLoginButton() {
         loginContainer.innerHTML = `<button id="loginPromptButton" class="btn btn-secondary">Login / Sign Up</button>`;
         document.getElementById('loginPromptButton').addEventListener('click', openLoginModal);
     }
 
-    /**
-     * Opens a modal for user login/signup.
-     */
     function openLoginModal() {
+        logEvent('ui_action', { component: 'login_modal', action: 'open' });
         const loginHtml = `
             <div class="space-y-4">
                 <div>
@@ -128,77 +145,75 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('loginSubmitButton').addEventListener('click', handleAuth);
     }
 
-    /**
-     * Handles the authentication logic for login/signup.
-     */
     async function handleAuth() {
         const email = document.getElementById('emailInput').value;
         const password = document.getElementById('passwordInput').value;
         if (!email || !password) {
-            alert("Please enter both email and password."); // Simple feedback for modal
+            alert("Please enter both email and password.");
             return;
         }
-
+        logEvent('auth_attempt', { email: email });
         try {
             await signInWithEmailAndPassword(auth, email, password);
+            logEvent('auth_success', { type: 'login' });
             closeModal();
         } catch (error) {
             if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
                 try {
                     await createUserWithEmailAndPassword(auth, email, password);
+                    logEvent('auth_success', { type: 'signup' });
                     closeModal();
                 } catch (signUpError) {
+                    logEvent('auth_failure', { type: 'signup', error: signUpError.message });
                     alert(`Signup failed: ${signUpError.message}`);
                 }
             } else {
+                logEvent('auth_failure', { type: 'login', error: error.message });
                 alert(`Login failed: ${error.message}`);
             }
         }
     }
 
-    /**
-     * Handles user logout.
-     */
     function handleLogout() {
-        signOut(auth).catch(error => openModal("Error", `Logout failed: ${error.message}`));
+        logEvent('logout_attempt');
+        signOut(auth).catch(error => {
+            logEvent('logout_failure', { error: error.message });
+            openModal("Error", `Logout failed: ${error.message}`);
+        });
     }
     
-    /**
-     * Fetches the saved API key for the current user from Firestore.
-     */
     async function fetchUserApiKey() {
         if (!currentUser) return;
+        logEvent('api_key_fetch_attempt');
         try {
             const userDocRef = doc(db, "users", currentUser.uid);
             const docSnap = await getDoc(userDocRef);
             if (docSnap.exists() && docSnap.data().geminiApiKey) {
                 activeApiKey = docSnap.data().geminiApiKey;
-                console.log("User API key loaded.");
+                logEvent('api_key_fetch_success', { found: true });
             } else {
                 activeApiKey = null;
-                console.log("No saved API key found for user. Prompting to set one.");
-                // You might want to automatically open a settings modal here
-                // openSettingsModal(); 
+                logEvent('api_key_fetch_success', { found: false });
             }
         } catch (e) {
             console.error("Error fetching API key: ", e);
             activeApiKey = null;
+            logEvent('api_key_fetch_failure', { error: e.message });
         }
     }
     
-    /**
-     * Loads AI prompts from Firestore into a local cache.
-     */
     async function loadPrompts() {
         if (!firebaseInitialized) return;
+        logEvent('prompts_load_attempt');
         try {
             const querySnapshot = await getDocs(collection(db, "prompts"));
             querySnapshot.forEach((doc) => {
                 promptsCache.set(doc.id, doc.data().text);
             });
-            console.log("Prompts loaded into cache:", promptsCache);
+            logEvent('prompts_load_success', { count: promptsCache.size });
         } catch(e) {
             console.error("Could not load prompts from Firestore:", e);
+            logEvent('prompts_load_failure', { error: e.message });
         }
     }
 
@@ -206,57 +221,51 @@ document.addEventListener('DOMContentLoaded', () => {
     // CORE FUNCTIONALITY: RECORDING & TRANSCRIPTION
     // =================================================================
     
-    /**
-     * Starts recording system audio.
-     */
     async function startRecording() {
+        logEvent('recording_start_attempt');
         if (!getApiKey()) {
-             openModal("API Key Required", "Please log in and set your Gemini API key in your profile settings to use this application.");
-             return;
+            logEvent('recording_start_failure', { reason: 'api_key_missing' });
+            openModal("API Key Required", "Please log in and set your Gemini API key to use this application.");
+            return;
         }
         
-        if (mediaRecorder && mediaRecorder.state === "recording") {
-            return; // Already recording
-        }
+        if (mediaRecorder && mediaRecorder.state === "recording") return;
 
         try {
             const displayStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
             if (displayStream.getAudioTracks().length === 0) {
                 displayStream.getTracks().forEach(track => track.stop());
-                openModal("Audio Error", "No audio track found. Please ensure you are sharing your screen or tab audio when prompted.");
+                logEvent('recording_start_failure', { reason: 'no_audio_track' });
+                openModal("Audio Error", "No audio track found. Please ensure you share screen or tab audio.");
                 return;
             }
 
             audioStream = new MediaStream(displayStream.getAudioTracks());
-            audioChunks = []; // Reset for new recording
+            audioChunks = [];
 
             mediaRecorder = new MediaRecorder(audioStream, { mimeType: 'audio/webm' });
             mediaRecorder.ondataavailable = (event) => {
                 if (event.data.size > 0) audioChunks.push(event.data);
             };
 
-            // When the user stops sharing their screen, automatically stop recording
             audioStream.getTracks()[0].onended = () => stopRecording();
 
             mediaRecorder.start();
+            logEvent('recording_start_success');
             updateUI();
 
         } catch (err) {
             console.error("Error starting recording:", err);
-            openModal("Recording Error", `Failed to start recording. Please ensure you grant permission. Error: ${err.message}`);
+            logEvent('recording_start_failure', { reason: 'permission_denied_or_unknown', error: err.message });
+            openModal("Recording Error", `Failed to start recording. Please grant permission. Error: ${err.message}`);
         }
     }
 
-    /**
-     * Stops the recording and initiates transcription.
-     */
     async function stopRecording() {
-        if (!mediaRecorder || mediaRecorder.state === "inactive") {
-            return; // Not recording
-        }
-
+        if (!mediaRecorder || mediaRecorder.state === "inactive") return;
+        
+        logEvent('recording_stop_attempt');
         mediaRecorder.stop();
-        // Stop all tracks to end the "screen sharing" notification
         if (audioStream) {
             audioStream.getTracks().forEach(track => track.stop());
         }
@@ -264,13 +273,13 @@ document.addEventListener('DOMContentLoaded', () => {
         updateUI();
 
         if (audioChunks.length > 0) {
+            logEvent('transcription_initiated');
             transcribeAudio();
+        } else {
+            logEvent('recording_stop_complete', { transcribed: false, reason: 'no_audio_chunks' });
         }
     }
     
-    /**
-     * Converts audio blob to base64 and sends to Gemini for transcription.
-     */
     async function transcribeAudio() {
         outputEl.textContent = "Transcribing, please wait...";
         const apiKey = getApiKey();
@@ -300,37 +309,34 @@ document.addEventListener('DOMContentLoaded', () => {
             if (result.candidates && result.candidates[0].content.parts[0].text) {
                 const transcript = result.candidates[0].content.parts[0].text;
                 outputEl.textContent = transcript;
+                logEvent('transcription_success', { character_length: transcript.length });
             } else {
                 throw new Error('Invalid API response structure.');
             }
         } catch (err) {
             outputEl.textContent = `Transcription Failed: ${err.message}`;
+            logEvent('transcription_failure', { error: err.message });
         } finally {
-            updateUI(); // Update button states after transcription
+            updateUI();
         }
     }
-
 
     // =================================================================
     // AI ACTIONS & UI
     // =================================================================
     
-    /**
-     * Handles the primary "Summarize" button click.
-     */
     function handleSummarize() {
-        const promptId = 'summarize'; // Hardcoded for the main button
+        const promptId = 'summarize';
         const promptTemplate = promptsCache.get(promptId);
         if (!promptTemplate) {
-            openModal("Error", "Could not find the 'summarize' prompt. Please check Firestore configuration.");
+            openModal("Error", "Could not find the 'summarize' prompt.");
+            logEvent('ai_action_failure', { prompt_id: promptId, reason: 'template_not_found' });
             return;
         }
+        logEvent('ai_action_initiated', { prompt_id: promptId });
         generateTextWithGemini(promptTemplate, "Summary", promptId);
     }
     
-    /**
-     * Generic function to call Gemini for text generation tasks.
-     */
     async function generateTextWithGemini(promptTemplate, taskTitle, promptId) {
         const apiKey = getApiKey();
         if (!apiKey) return;
@@ -354,42 +360,35 @@ document.addEventListener('DOMContentLoaded', () => {
             if (result.candidates && result.candidates[0].content.parts[0].text) {
                 const generatedText = result.candidates[0].content.parts[0].text;
                 animateText(modalBody, generatedText);
-                // showFeedbackUI(transcript, finalPrompt, generatedText, promptId); // You can re-enable this if needed
+                logEvent('ai_action_success', { prompt_id: promptId });
             } else {
                 throw new Error('Invalid API response.');
             }
         } catch (err) {
             modalBody.innerHTML = `<p class="text-red-400">Could not generate ${taskTitle.toLowerCase()}. Error: ${err.message}</p>`;
+            logEvent('ai_action_failure', { prompt_id: promptId, error: err.message });
         }
     }
 
-    /**
-     * Updates the entire UI based on the current application state.
-     */
+    // =================================================================
+    // UI & HELPER FUNCTIONS
+    // =================================================================
+    
     function updateUI() {
         const isRecording = mediaRecorder && mediaRecorder.state === 'recording';
         const hasTranscript = outputEl.textContent && !outputEl.textContent.startsWith("Your transcript") && !outputEl.textContent.startsWith("Transcribing");
 
-        // Record Button State
         recordButton.disabled = isRecording;
         recordButton.classList.toggle('recording', isRecording);
         recordButton.querySelector('span').textContent = isRecording ? 'Recording...' : 'Record';
 
-        // Stop Button State
         stopButton.disabled = !isRecording;
-
-        // Analysis Buttons State
         summarizeButton.disabled = !hasTranscript || isRecording;
         aiDropdownButton.disabled = !hasTranscript || isRecording;
     }
 
-    // =================================================================
-    // HELPER FUNCTIONS
-    // =================================================================
-
     function getApiKey() {
         if (activeApiKey) return activeApiKey;
-        // In the new UI, we prompt via modals instead of an inline input
         return null;
     }
 
@@ -403,8 +402,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function animateText(element, text) {
-        // Simple text insertion for now, can be replaced with animation later
-        element.innerHTML = text.replace(/\n/g, '<br>');
+        element.innerHTML = text.replace(/\*/g, '').replace(/\n/g, '<br>');
     }
 
     function openModal(title, content) {
@@ -423,6 +421,26 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => modalBackdrop.classList.add('hidden'), 300);
     }
     
+    function openDebugModal() {
+        logEvent('debug_modal_opened');
+        const reportHtml = `
+            <div id="debug-report-content">${JSON.stringify(sessionLog, null, 2)}</div>
+            <button id="copyLogBtn" class="btn">Copy to Clipboard</button>
+        `;
+        openModal("Session Debug Log", reportHtml);
+        
+        document.getElementById('copyLogBtn').addEventListener('click', () => {
+            const logText = JSON.stringify(sessionLog, null, 2);
+            navigator.clipboard.writeText(logText).then(() => {
+                alert('Log copied to clipboard!');
+                logEvent('debug_log_copied');
+            }).catch(err => {
+                console.error('Failed to copy log', err);
+                logEvent('debug_log_copy_failed', { error: err.message });
+            });
+        });
+    }
+    
     // =================================================================
     // EVENT LISTENERS
     // =================================================================
@@ -430,8 +448,8 @@ document.addEventListener('DOMContentLoaded', () => {
     stopButton.addEventListener('click', stopRecording);
     summarizeButton.addEventListener('click', handleSummarize);
     logoutButton.addEventListener('click', handleLogout);
+    debugButton.addEventListener('click', openDebugModal);
     
-    // AI Dropdown logic
     aiDropdownButton.addEventListener('click', (e) => {
         const isExpanded = aiDropdownButton.getAttribute('aria-expanded') === 'true';
         aiDropdownButton.setAttribute('aria-expanded', !isExpanded);
@@ -457,7 +475,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             generateTextWithGemini(promptTemplate, taskTitle, promptId);
             aiDropdownMenu.classList.add('hidden');
-             aiDropdownButton.setAttribute('aria-expanded', 'false');
+            aiDropdownButton.setAttribute('aria-expanded', 'false');
         });
     });
 
@@ -466,6 +484,5 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.target === modalBackdrop) closeModal();
     });
     
-    // Initial UI state
     updateUI();
 });
