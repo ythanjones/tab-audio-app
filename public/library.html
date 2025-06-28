@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Library - AI Learning Assistant</title>
+    <!-- Main Stylesheet -->
+    <link rel="stylesheet" href="styles.css?v=2.2"> <!-- Version updated -->
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Lora:wght@700&display=swap" rel="stylesheet">
+    <!-- Feather Icons -->
+    <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
+</head>
+<body class="library-body">
+
+    <div id="library-container">
+        <!-- Sidebar for Collections -->
+        <aside id="library-sidebar">
+            <div class="sidebar-header">
+                <a href="index.html" class="back-link" title="Back to Main App">
+                    <i data-feather="arrow-left"></i>
+                    <h1 class="main-title">My Library</h1>
+                </a>
+            </div>
+            <div class="sidebar-content">
+                <div class="search-container">
+                    <i data-feather="search" class="search-icon"></i>
+                    <input type="text" id="collectionSearchInput" class="search-input" placeholder="Search collections...">
+                </div>
+                <nav id="collections-nav">
+                    <ul id="collectionsList" class="collections-list">
+                        <!-- Collections will be dynamically inserted by library.js -->
+                        <!-- Example of an active collection item -->
+                        <li class="collection-item is-active" data-id="example1">
+                            <a>
+                                <i data-feather="folder"></i>
+                                <span>Deep Learning Papers</span>
+                            </a>
+                        </li>
+                        <!-- Example of an inactive collection item -->
+                         <li class="collection-item" data-id="example2">
+                            <a>
+                                <i data-feather="folder"></i>
+                                <span>History Podcasts</span>
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+            <div class="sidebar-footer">
+                <button id="newCollectionBtn" class="btn btn-secondary w-full">
+                    <i data-feather="plus-circle"></i>
+                    <span>New Collection</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content Area for Items -->
+        <main id="library-content">
+            <div class="content-header">
+                 <h2 id="current-collection-title" class="collection-title">Deep Learning Papers</h2>
+                 <div class="collection-actions">
+                     <button id="renameCollectionBtn" class="btn-icon" title="Rename Collection"><i data-feather="edit-2"></i></button>
+                     <button id="deleteCollectionBtn" class="btn-icon btn-danger" title="Delete Collection"><i data-feather="trash-2"></i></button>
+                 </div>
+            </div>
+           
+            <div id="itemsList" class="items-list-container">
+                <!-- Library items will be dynamically inserted by library.js -->
+                
+                <!-- Example of a Transcript Item -->
+                <div class="library-item" data-id="item1">
+                    <div class="item-main">
+                        <i data-feather="file-text" class="item-icon"></i>
+                        <div class="item-details">
+                            <p class="item-title">Summary of the Le-Net 5 Architecture</p>
+                            <span class="item-badge transcript-badge">Transcript</span>
+                        </div>
+                    </div>
+                    <div class="item-actions">
+                        <button class="btn-icon" title="Rename"><i data-feather="edit-3"></i></button>
+                        <button class="btn-icon" title="Export"><i data-feather="share"></i></button>
+                        <button class="btn-icon" title="Load in App"><i data-feather="arrow-up-right"></i></button>
+                        <button class="btn-icon btn-danger" title="Delete"><i data-feather="x"></i></button>
+                    </div>
+                </div>
+
+                <!-- Example of a Flashcard Deck Item -->
+                <div class="library-item" data-id="item2">
+                     <div class="item-main">
+                        <i data-feather="layers" class="item-icon"></i>
+                        <div class="item-details">
+                            <p class="item-title">Key Concepts: Neural Networks</p>
+                            <span class="item-badge flashcard-badge">Flashcard Deck</span>
+                        </div>
+                    </div>
+                    <div class="item-actions">
+                         <button class="btn-icon" title="Rename"><i data-feather="edit-3"></i></button>
+                         <button class="btn-icon" title="Export"><i data-feather="share"></i></button>
+                         <button class="btn-icon" title="View/Edit Deck"><i data-feather="edit"></i></button>
+                         <button class="btn-icon btn-danger" title="Delete"><i data-feather="x"></i></button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Empty State - Shown when a collection has no items -->
+             <div id="empty-state" class="empty-state-container hidden">
+                <i data-feather="folder-plus" class="empty-state-icon"></i>
+                <h3 class="empty-state-title">This collection is empty</h3>
+                <p class="empty-state-text">Go to the main app to save transcripts and create flashcards.</p>
+            </div>
+        </main>
+    </div>
+
+    <!-- Main Application Script for this page -->
+    <script type="module" src="library.js"></script>
+    <script>
+        // Initialize Feather Icons after the page loads
+        feather.replace();
+    </script>
+</body>
+</html>
