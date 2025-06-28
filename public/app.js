@@ -50,7 +50,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // DOM element references
     const appContainer = document.getElementById('app-container');
-    const recordButton = document.getElementById('recordButton');
+    const startButton = document.getElementById('recordButton');
     const pauseButton = document.getElementById('pauseButton');
     const transcribeButton = document.getElementById('transcribeButton');
     const statusEl = document.getElementById('status');
@@ -71,7 +71,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const logoutButton = document.getElementById('logoutButton');
     const historyButton = document.getElementById('historyButton');
     const settingsButton = document.getElementById('settingsButton');
-    const saveButton = document.getElementById('saveButton');
     const debugButton = document.getElementById('debugButton');
     
     // AI Action Elements
@@ -116,11 +115,14 @@ document.addEventListener('DOMContentLoaded', () => {
             currentUser = user;
             if (user) {
                 appContainer.classList.add('logged-in');
+                userInfo.style.display = 'flex';
+                loginContainer.style.display = 'none';
                 userEmailEl.textContent = user.email;
-                closeContainer(loginContainer);
                 await fetchUserApiKey();
             } else {
                 appContainer.classList.remove('logged-in');
+                userInfo.style.display = 'none';
+                loginContainer.style.display = 'flex';
                 userEmailEl.textContent = '';
                 activeApiKey = null;
             }
@@ -285,7 +287,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const isPaused = status === 'Paused';
         const hasAudio = audioChunks.length > 0;
 
-        recordButton.textContent = isPaused ? 'Resume' : 'Record';
+        recordButton.innerHTML = isRecording 
+            ? '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>'
+            : '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle></svg>';
         
         recordButton.disabled = isRecording && !isPaused;
         pauseButton.disabled = !isRecording || isPaused;
