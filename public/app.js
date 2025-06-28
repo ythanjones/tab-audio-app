@@ -44,7 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const eventData = { timestamp: new Date().toISOString(), level: 'EVENT', name, params };
         sessionLog.push(eventData);
         originalConsoleLog(`EVENT: ${name}`, params);
-        if (analytics) {
+        if (typeof analytics !== 'undefined' && analytics) {
             fbLogEvent(analytics, name, params);
         }
     }
@@ -63,7 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const recordButton = document.getElementById('recordButton');
     const stopButton = document.getElementById('stopButton');
     const summarizeButton = document.getElementById('summarizeButton');
-    const saveButton = document.getElementById('saveButton'); // Added
+    const saveButton = document.getElementById('saveButton');
     const outputEl = document.getElementById('transcriptionOutput');
     const loginContainer = document.getElementById('loginContainer');
     const userInfo = document.getElementById('userInfo');
@@ -124,14 +124,82 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('loginPromptButton').addEventListener('click', openLoginModal);
     }
 
+    // FIXED: The loginHtml constant was missing its content.
     function openLoginModal() {
         logEvent('ui_action', { component: 'login_modal', action: 'open' });
-        const loginHtml = `...`; // Content is the same
+        const loginHtml = `
+            <div class="space-y-4">
+                <div>
+                    <label for="emailInput" class="block text-sm font-medium text-slate-300">Email</label>
+                    <input type="email" id="emailInput" class="w-full mt-1 bg-slate-900 border border-slate-600 rounded-md p-2 focus:ring-amber-500 focus:border-amber-500">
+                </div>
+                <div>
+                    <label for="passwordInput" class="block text-sm font-medium text-slate-300">Password</label>
+                    <input type="password" id="passwordInput" class="w-full mt-1 bg-slate-900 border border-slate-600 rounded-md p-2 focus:ring-amber-500 focus:border-amber-500">
+                </div>
+                <button id="loginSubmitButton" class="btn btn-primary w-full">Login / Sign Up</button>
+            </div>
+        `;
         openModal("Login", loginHtml);
         document.getElementById('loginSubmitButton').addEventListener('click', handleAuth);
     }
     
-    // other auth functions (handleAuth, handleLogout, fetchUserApiKey) remain the same
+    async function handleAuth() {
+        const email = document.getElementById('emailInput').value;
+        const password = document.getElementById('passwordInput').value;
+        if (!email || !password) {
+            alert("Please enter both email and password.");
+            return;
+        }
+        logEvent('auth_attempt', { email: email });
+        try {
+            await signInWithEmailAndPassword(auth, email, password);
+            logEvent('auth_success', { type: 'login' });
+            closeModal();
+        } catch (error) {
+            if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+                try {
+                    await createUserWithEmailAndPassword(auth, email, password);
+                    logEvent('auth_success', { type: 'signup' });
+                    closeModal();
+                } catch (signUpError) {
+                    logEvent('auth_failure', { type: 'signup', error: signUpError.message });
+                    alert(`Signup failed: ${signUpError.message}`);
+                }
+            } else {
+                logEvent('auth_failure', { type: 'login', error: error.message });
+                alert(`Login failed: ${error.message}`);
+            }
+        }
+    }
+
+    function handleLogout() {
+        logEvent('logout_attempt');
+        signOut(auth).catch(error => {
+            logEvent('logout_failure', { error: error.message });
+            openModal("Error", `Logout failed: ${error.message}`);
+        });
+    }
+    
+    async function fetchUserApiKey() {
+        if (!currentUser) return;
+        logEvent('api_key_fetch_attempt');
+        try {
+            const userDocRef = doc(db, "users", currentUser.uid);
+            const docSnap = await getDoc(userDocRef);
+            if (docSnap.exists() && docSnap.data().geminiApiKey) {
+                activeApiKey = docSnap.data().geminiApiKey;
+                logEvent('api_key_fetch_success', { found: true });
+            } else {
+                activeApiKey = null;
+                logEvent('api_key_fetch_success', { found: false });
+            }
+        } catch (e) {
+            console.error("Error fetching API key: ", e);
+            activeApiKey = null;
+            logEvent('api_key_fetch_failure', { error: e.message });
+        }
+    }
 
     async function loadPrompts() {
         if (!firebaseInitialized) return;
@@ -149,9 +217,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // =================================================================
     // CORE FUNCTIONALITY: RECORDING & TRANSCRIPTION
     // =================================================================
-    
-    // startRecording, stopRecording, and transcribeAudio functions remain the same
-    
+        
     async function startRecording() {
         logEvent('recording_start_attempt');
         if (!getApiKey()) {
@@ -244,9 +310,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-
     // =================================================================
-    // AI ACTIONS & LIBRARY FUNCTIONS (NEW)
+    // AI ACTIONS & LIBRARY FUNCTIONS
     // =================================================================
     
     function handleSummarize() {
@@ -260,7 +325,34 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     async function generateTextWithGemini(promptTemplate, taskTitle, promptId) {
-        // ... function remains the same
+        const apiKey = getApiKey();
+        if (!apiKey) return;
+        
+        openModal(taskTitle, '<div class="flex justify-center items-center"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div></div>');
+        
+        const transcript = outputEl.textContent;
+        const finalPrompt = promptTemplate.replace('{transcript}', transcript);
+
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+        const payload = { contents: [{ parts: [{ text: finalPrompt }] }] };
+
+        try {
+            const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+            const result = await response.json();
+
+            if (!response.ok) throw new Error(result.error?.message || `API Error: ${response.status}`);
+
+            if (result.candidates && result.candidates[0].content.parts[0].text) {
+                const generatedText = result.candidates[0].content.parts[0].text;
+                animateText(modalBody, generatedText);
+                logEvent('ai_action_success', { prompt_id: promptId });
+            } else {
+                throw new Error('Invalid API response.');
+            }
+        } catch (err) {
+            modalBody.innerHTML = `<p class="text-red-400">Could not generate ${taskTitle.toLowerCase()}. Error: ${err.message}</p>`;
+            logEvent('ai_action_failure', { prompt_id: promptId, error: err.message });
+        }
     }
 
     async function openSaveModal() {
@@ -355,7 +447,7 @@ document.addEventListener('DOMContentLoaded', () => {
             logEvent('save_transcript_success');
             saveButton.textContent = 'Saved!';
             saveButton.classList.remove('btn-primary');
-            saveButton.classList.add('bg-green-600'); // Success state
+            saveButton.classList.add('bg-green-600');
             
             setTimeout(() => closeModal(), 1200);
 
@@ -364,7 +456,6 @@ document.addEventListener('DOMContentLoaded', () => {
             logEvent('save_transcript_failure', { error: error.message });
             saveButton.disabled = false;
             saveButton.textContent = 'Save Transcript';
-            // You can add an error message within the modal here
         }
     }
 
@@ -385,10 +476,62 @@ document.addEventListener('DOMContentLoaded', () => {
         stopButton.disabled = !isRecording;
         summarizeButton.disabled = !hasTranscript || isRecording;
         aiDropdownButton.disabled = !hasTranscript || isRecording;
-        saveButton.disabled = !hasTranscript || isRecording || !isLoggedIn; // Can't save if not logged in
+        saveButton.disabled = !hasTranscript || isRecording || !isLoggedIn;
     }
 
-    // other helper functions (getApiKey, blobToBase64, etc.) remain the same
+    function getApiKey() {
+        if (activeApiKey) return activeApiKey;
+        return null;
+    }
+
+    function blobToBase64(blob) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(blob);
+            reader.onloadend = () => resolve(reader.result.split(',')[1]);
+            reader.onerror = reject;
+        });
+    }
+    
+    function animateText(element, text) {
+        element.innerHTML = text.replace(/\*/g, '').replace(/\n/g, '<br>');
+    }
+
+    function openModal(title, content) {
+        modalTitle.textContent = title;
+        modalBody.innerHTML = content;
+        modalBackdrop.classList.remove('hidden');
+        setTimeout(() => {
+            modalBackdrop.classList.add('opacity-100');
+            modalContent.classList.add('scale-100', 'opacity-100');
+        }, 10);
+    }
+
+    function closeModal() {
+        modalBackdrop.classList.remove('opacity-100');
+        modalContent.classList.remove('scale-100', 'opacity-100');
+        setTimeout(() => modalBackdrop.classList.add('hidden'), 300);
+    }
+    
+    function openDebugModal() {
+        logEvent('debug_modal_opened');
+        const reportHtml = `
+            <div id="debug-report-content">${JSON.stringify(sessionLog, null, 2)}</div>
+            <button id="copyLogBtn" class="btn">Copy to Clipboard</button>
+        `;
+        openModal("Session Debug Log", reportHtml);
+        
+        document.getElementById('copyLogBtn').addEventListener('click', () => {
+            const logText = JSON.stringify(sessionLog, null, 2);
+            navigator.clipboard.writeText(logText).then(() => {
+                alert('Log copied to clipboard!');
+                logEvent('debug_log_copied');
+            }).catch(err => {
+                console.error('Failed to copy log', err);
+                logEvent('debug_log_copy_failed', { error: err.message });
+            });
+        });
+    }
     
     // =================================================================
     // EVENT LISTENERS
@@ -396,9 +539,43 @@ document.addEventListener('DOMContentLoaded', () => {
     recordButton.addEventListener('click', startRecording);
     stopButton.addEventListener('click', stopRecording);
     summarizeButton.addEventListener('click', handleSummarize);
-    saveButton.addEventListener('click', openSaveModal); // Added
+    saveButton.addEventListener('click', openSaveModal);
     logoutButton.addEventListener('click', handleLogout);
     debugButton.addEventListener('click', openDebugModal);
     
-    // other listeners remain the same
+    aiDropdownButton.addEventListener('click', (e) => {
+        const isExpanded = aiDropdownButton.getAttribute('aria-expanded') === 'true';
+        aiDropdownButton.setAttribute('aria-expanded', !isExpanded);
+        aiDropdownMenu.classList.toggle('hidden');
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!aiDropdownButton.contains(e.target) && !aiDropdownMenu.contains(e.target)) {
+            aiDropdownMenu.classList.add('hidden');
+            aiDropdownButton.setAttribute('aria-expanded', 'false');
+        }
+    });
+
+    aiButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            const promptId = button.dataset.promptId;
+            const taskTitle = button.textContent;
+            const promptTemplate = promptsCache.get(promptId);
+
+            if (!promptTemplate) {
+                openModal("Error", `Prompt '${promptId}' not found.`);
+                return;
+            }
+            generateTextWithGemini(promptTemplate, taskTitle, promptId);
+            aiDropdownMenu.classList.add('hidden');
+            aiDropdownButton.setAttribute('aria-expanded', 'false');
+        });
+    });
+
+    modalClose.addEventListener('click', closeModal);
+    modalBackdrop.addEventListener('click', (e) => {
+        if (e.target === modalBackdrop) closeModal();
+    });
+    
+    updateUI();
 });
