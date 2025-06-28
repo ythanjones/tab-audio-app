@@ -731,6 +731,18 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     logoutButton.addEventListener('click', handleLogout);
 
+apiKeyContainer.addEventListener('click', (e) => {
+    if (e.target.closest('input')) return; // Don't trigger if clicking inside the input
+    openContainer(apiKeyContainer);
+});
+
+loginContainer.addEventListener('click', (e) => {
+    if (e.target.closest('input') || e.target.closest('button')) return; // Don't trigger if clicking on inputs/buttons
+    if (appContainer.classList.contains('logged-in')) return; // Don't open if logged in
+    openContainer(loginContainer);
+});
+
+// ----------------------------------------------------------------
     // AI Dropdown logic
     aiDropdownButton.addEventListener('click', (e) => {
         e.stopPropagation();
