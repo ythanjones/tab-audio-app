@@ -1,0 +1,20 @@
+{
+    "name": "learning-agent-service",
+    "version": "1.0.0",
+    "description": "A backend service that orchestrates multiple AI tools to generate a complete learning packet.",
+    "main": "index.js",
+    "scripts": {
+      "start": "node index.js"
+    },
+    "author": "",
+    "license": "ISC",
+    "engines": {
+      "node": "18"
+    },
+    "dependencies": {
+      "@google/generative-ai": "^0.2.1",
+      "express": "^4.19.2",
+      "cors": "^2.8.5"
+    }
+  }
+  
