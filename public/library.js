@@ -158,10 +158,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             const items = [];
+            
+            // Query transcripts
             const transcriptsRef = collection(db, "users", currentUser.uid, "transcripts");
-            const tq = query(transcriptsRef, where("collectionId", "==", collectionId), orderBy("createdAt", "desc"));
+            const tq = query(transcriptsRef, where("collectionId", "==", collectionId));
             const tSnapshot = await getDocs(tq);
             tSnapshot.forEach(doc => items.push({ id: doc.id, type: 'transcript', ...doc.data() }));
+
+            // --- NEW: Query learning packets ---
+            const packetsRef = collection(db, "users", currentUser.uid, "learning_packets");
+            const pq = query(packetsRef, where("collectionId", "==", collectionId));
+            const pSnapshot = await getDocs(pq);
+            pSnapshot.forEach(doc => items.push({ id: doc.id, type: 'packet', ...doc.data() }));
+
+            // Sort all combined items by date
+            items.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
 
             itemsListEl.innerHTML = ''; 
             logEvent('collection_items_load_success', { collectionId, items_found: items.length });
@@ -184,9 +195,17 @@ document.addEventListener('DOMContentLoaded', () => {
         itemDiv.className = 'library-item';
         itemDiv.dataset.id = itemData.id;
 
-        const iconType = itemData.type === 'transcript' ? 'file-text' : 'layers';
-        const badgeClass = itemData.type === 'transcript' ? 'transcript-badge' : 'flashcard-badge';
-        const badgeText = itemData.type === 'transcript' ? 'Transcript' : 'Flashcard Deck';
+        // --- UPDATED: Handle 'packet' type ---
+        let iconType, badgeClass, badgeText;
+        if (itemData.type === 'transcript') {
+            iconType = 'file-text';
+            badgeClass = 'transcript-badge';
+            badgeText = 'Transcript';
+        } else { // It's a packet
+            iconType = 'gift';
+            badgeClass = 'packet-badge'; // We should add a style for this
+            badgeText = 'Learning Packet';
+        }
 
         itemDiv.innerHTML = `
             <div class="item-main">

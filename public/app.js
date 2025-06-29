@@ -63,7 +63,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- DOM element references ---
     const learningPacketButton = document.getElementById('learningPacketButton');
-    const summarizeButton = document.getElementById('summarizeButton');
     const recordButton = document.getElementById('recordButton');
     const stopButton = document.getElementById('stopButton');
     const saveButton = document.getElementById('saveButton');
@@ -334,7 +333,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const learningPacket = await response.json();
             logEvent('agent_action_success');
-            displayLearningPacket(learningPacket);
+            displayLearningPacket(learningPacket, transcript);
 
         } catch (error) {
             console.error("Error calling agent service:", error);
@@ -343,48 +342,76 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    function displayLearningPacket(packet) {
+    function displayLearningPacket(packet, transcript) {
         modalTitle.textContent = "Your Learning Packet";
         let html = '<div class="space-y-6">';
+        const originalPrompt = "Generate a complete learning packet including a summary, key concepts, and flashcards from the provided transcript.";
 
         if (packet.summary && !packet.summary.startsWith("Error:")) {
-            html += `
-                <div>
-                    <h3 class="text-lg font-bold text-amber-500 mb-2 border-b border-slate-700 pb-1">Summary</h3>
-                    <p class="text-slate-300 whitespace-pre-wrap">${packet.summary}</p>
-                </div>
-            `;
+            html += createPacketSection('Summary', packet.summary, 'summarize_packet_part', transcript, originalPrompt);
         }
-
         if (packet.keyConcepts && packet.keyConcepts.length > 0 && !packet.keyConcepts[0].concept.startsWith("Error")) {
-            html += `
-                <div>
-                    <h3 class="text-lg font-bold text-amber-500 mb-2 border-b border-slate-700 pb-1">Key Concepts</h3>
-                    <ul class="space-y-2 list-disc list-inside">
-                        ${packet.keyConcepts.map(item => `<li><strong>${item.concept}:</strong> ${item.definition}</li>`).join('')}
-                    </ul>
-                </div>
-            `;
+            const conceptsHtml = `<ul class="space-y-2 list-disc list-inside">${packet.keyConcepts.map(item => `<li><strong>${item.concept}:</strong> ${item.definition}</li>`).join('')}</ul>`;
+            html += createPacketSection('Key Concepts', conceptsHtml, 'keyConcepts_packet_part', transcript, originalPrompt);
         }
-
         if (packet.flashcards && packet.flashcards.length > 0 && !packet.flashcards[0].front.startsWith("Error")) {
-            html += `
-                <div>
-                    <h3 class="text-lg font-bold text-amber-500 mb-2 border-b border-slate-700 pb-1">Flashcards</h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        ${packet.flashcards.map(card => `
-                            <div class="bg-slate-800 p-3 rounded-md border border-slate-700">
-                                <p class="font-semibold">Q: ${card.front}</p>
-                                <p class="text-slate-400 mt-1">A: ${card.back}</p>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-            `;
+            const flashcardsHtml = `<div class="grid grid-cols-1 md:grid-cols-2 gap-4">${packet.flashcards.map(card => `<div class="bg-slate-800 p-3 rounded-md border border-slate-700"><p class="font-semibold">Q: ${card.front}</p><p class="text-slate-400 mt-1">A: ${card.back}</p></div>`).join('')}</div>`;
+            html += createPacketSection('Flashcards', flashcardsHtml, 'flashcards_packet_part', transcript, originalPrompt);
         }
         
         html += '</div>';
+        
+        modalFeedbackEl.innerHTML = `<button id="savePacketBtn" class="btn btn-primary">Save to Library</button>`;
+        modalFeedbackEl.classList.remove('hidden');
+        document.getElementById('savePacketBtn').addEventListener('click', () => openSaveModal(null, packet));
+
         modalBody.innerHTML = html;
+        addFeedbackListeners();
+        feather.replace();
+    }
+    
+    function createPacketSection(title, content, promptId, transcript, originalPrompt) {
+        return `
+            <div class="packet-section">
+                <h3 class="text-lg font-bold text-amber-500 mb-2 border-b border-slate-700 pb-1">${title}</h3>
+                <div class="packet-content" data-response="${escape(content)}">${content}</div>
+                <div class="feedback-widget" data-prompt-id="${promptId}" data-transcript="${escape(transcript)}" data-prompt="${escape(originalPrompt)}">
+                    <p class="feedback-question">Helpful?</p>
+                    <div class="feedback-buttons">
+                        <button class="feedback-btn" data-rating="positive"><i data-feather="thumbs-up"></i></button>
+                        <button class="feedback-btn" data-rating="negative"><i data-feather="thumbs-down"></i></button>
+                    </div>
+                    <div class="detailed-feedback-wrapper hidden">
+                        <textarea class="detailed-feedback-input" placeholder="How can we improve?"></textarea>
+                        <button class="submit-detailed-feedback">Submit</button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    function addFeedbackListeners() {
+        document.querySelectorAll('.feedback-widget').forEach(widget => {
+            widget.querySelector('[data-rating="positive"]').addEventListener('click', (e) => handlePacketFeedback(e, widget));
+            widget.querySelector('[data-rating="negative"]').addEventListener('click', (e) => {
+                widget.querySelector('.detailed-feedback-wrapper').classList.remove('hidden');
+                widget.querySelector('.submit-detailed-feedback').onclick = (e_sub) => handlePacketFeedback(e, widget);
+            });
+        });
+    }
+
+    async function handlePacketFeedback(event, widget) {
+        const rating = event.currentTarget.dataset.rating;
+        const detailedInput = widget.querySelector('.detailed-feedback-input');
+        const detailedFeedback = detailedInput ? detailedInput.value : '';
+
+        const promptId = widget.dataset.promptId;
+        const transcript = unescape(widget.dataset.transcript);
+        const prompt = unescape(widget.dataset.prompt);
+        const response = unescape(widget.querySelector('.packet-content').dataset.response);
+        
+        widget.innerHTML = '<p class="text-sm text-slate-400">Thank you!</p>';
+        await saveAndJudgeFeedback(transcript, prompt, response, promptId, rating, detailedFeedback);
     }
     
     async function generateTextWithGemini(promptTemplate, taskTitle, promptId) {
@@ -406,6 +433,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const generatedText = result.candidates[0].content.parts[0].text;
                 animateText(modalBody, generatedText);
                 logEvent('ai_action_success', { prompt_id: promptId });
+                // We show feedback for individual tools too
                 showFeedbackUI(transcript, finalPrompt, generatedText, promptId);
             } else {
                 throw new Error('Invalid API response.');
@@ -421,12 +449,8 @@ document.addEventListener('DOMContentLoaded', () => {
         modalFeedbackEl.innerHTML = `
             <p class="text-sm text-slate-400 mb-2">Was this response helpful?</p>
             <div class="flex justify-center gap-4">
-                <button class="feedback-btn p-2 rounded-full hover:bg-slate-700" data-rating="positive">
-                    <i data-feather="thumbs-up" class="w-6 h-6 text-green-500"></i>
-                </button>
-                <button class="feedback-btn p-2 rounded-full hover:bg-slate-700" data-rating="negative">
-                    <i data-feather="thumbs-down" class="w-6 h-6 text-red-500"></i>
-                </button>
+                <button class="feedback-btn p-2 rounded-full hover:bg-slate-700" data-rating="positive"><i data-feather="thumbs-up" class="w-6 h-6 text-green-500"></i></button>
+                <button class="feedback-btn p-2 rounded-full hover:bg-slate-700" data-rating="negative"><i data-feather="thumbs-down" class="w-6 h-6 text-red-500"></i></button>
             </div>
             <div id="detailed-feedback-container" class="mt-3 hidden">
                 <textarea id="detailed-feedback-input" class="w-full text-sm bg-slate-900 border-slate-600 rounded-md p-2" placeholder="Optional: How could we improve?"></textarea>
@@ -460,7 +484,11 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         
-        modalFeedbackEl.innerHTML = '<p class="text-sm text-slate-400">Thank you for your feedback!</p>';
+        // This is a generic thanks message; specific widgets will overwrite themselves.
+        if(modalFeedbackEl.contains(document.getElementById('detailed-feedback-container'))) {
+            modalFeedbackEl.innerHTML = '<p class="text-sm text-slate-400">Thank you for your feedback!</p>';
+        }
+        
         logEvent('feedback_submitted', { prompt_id: promptId, rating, has_detailed_text: !!detailedFeedback });
 
         try {
@@ -480,12 +508,7 @@ document.addEventListener('DOMContentLoaded', () => {
             fetch(AI_JUDGE_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    feedbackId: feedbackId,
-                    transcript: transcript,
-                    prompt: prompt,
-                    response: response
-                })
+                body: JSON.stringify({ feedbackId, transcript, prompt, response })
             })
             .then(res => {
                 if (res.ok) { logEvent('ai_judge_request_successful', { feedbackId }); } 
@@ -501,17 +524,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    async function openSaveModal() {
+    async function openSaveModal(isTranscript = true, packetToSave = null) {
         if (!currentUser) {
             openModal("Login Required", "You must be logged in to save your work.");
             return;
         }
-        const transcriptText = outputEl.textContent.trim();
-        if (!transcriptText || transcriptText.startsWith("Your transcript")) {
-            openModal("Error", "There is no transcript to save.");
+        
+        const contentToSave = isTranscript ? outputEl.textContent.trim() : "Learning Packet";
+        if (!contentToSave || contentToSave.startsWith("Your transcript")) {
+            openModal("Error", "There is nothing to save.");
             return;
         }
-        logEvent('save_modal_opened');
+        
+        logEvent('save_modal_opened', { type: isTranscript ? 'transcript' : 'packet' });
         openModal("Save to Library", '<p>Loading your collections...</p>');
 
         try {
@@ -527,36 +552,37 @@ document.addEventListener('DOMContentLoaded', () => {
             let collectionsHtml = '';
             querySnapshot.forEach((doc, index) => {
                 const col = { id: doc.id, ...doc.data() };
-                collectionsHtml += `
-                    <label for="col-${col.id}" class="flex items-center space-x-3 p-2 rounded-md hover:bg-slate-700 cursor-pointer">
-                        <input type="radio" id="col-${col.id}" name="collection" value="${col.id}" ${index === 0 ? 'checked' : ''} class="w-4 h-4 text-amber-500 bg-slate-900 border-slate-600 focus:ring-amber-500">
-                        <span>${col.name}</span>
-                    </label>
-                `;
+                collectionsHtml += `<label class="flex items-center space-x-3 p-2 rounded-md hover:bg-slate-700 cursor-pointer"><input type="radio" name="collection" value="${col.id}" ${index === 0 ? 'checked' : ''} class="w-4 h-4 text-amber-500 bg-slate-900 border-slate-600 focus:ring-amber-500"><span>${col.name}</span></label>`;
             });
             
-            const defaultTitle = transcriptText.substring(0, 50) + (transcriptText.length > 50 ? "..." : "");
+            const defaultTitle = contentToSave.substring(0, 50) + (contentToSave.length > 50 ? "..." : "");
             const saveModalHtml = `
                 <div class="space-y-4">
                     <div>
-                        <label for="transcriptTitle" class="block text-sm font-medium text-slate-300 mb-1">Title</label>
-                        <input type="text" id="transcriptTitle" value="${defaultTitle}" class="w-full bg-slate-900 border border-slate-600 rounded-md p-2 focus:ring-amber-500 focus:border-amber-500">
+                        <label for="itemTitle" class="block text-sm font-medium text-slate-300 mb-1">Title</label>
+                        <input type="text" id="itemTitle" value="${defaultTitle}" class="w-full bg-slate-900 border border-slate-600 rounded-md p-2 focus:ring-amber-500 focus:border-amber-500">
                     </div>
                     <div>
                         <p class="block text-sm font-medium text-slate-300">Choose a collection</p>
                         <div class="mt-2 space-y-1 max-h-40 overflow-y-auto p-1 border border-slate-700 rounded-md">${collectionsHtml}</div>
                     </div>
-                    <button id="saveConfirmButton" class="btn btn-primary w-full">Save Transcript</button>
+                    <button id="saveConfirmButton" class="btn btn-primary w-full">Save</button>
                 </div>
             `;
             openModal("Save to Library", saveModalHtml);
 
             document.getElementById('saveConfirmButton').addEventListener('click', () => {
-                const title = document.getElementById('transcriptTitle').value;
+                const title = document.getElementById('itemTitle').value;
                 const selectedCollection = document.querySelector('input[name="collection"]:checked');
-                if (!title) { alert("Please enter a title."); return; }
-                if (!selectedCollection) { alert("Please select a collection."); return; }
-                saveTranscriptToLibrary(title, selectedCollection.value);
+                if (!title || !selectedCollection) {
+                    alert("Please provide a title and select a collection.");
+                    return;
+                }
+                if(isTranscript) {
+                    saveTranscriptToLibrary(title, selectedCollection.value);
+                } else {
+                    savePacketToLibrary(title, selectedCollection.value, packetToSave);
+                }
             });
         } catch (error) {
             console.error("Error fetching collections:", error);
@@ -568,28 +594,45 @@ document.addEventListener('DOMContentLoaded', () => {
     async function saveTranscriptToLibrary(title, collectionId) {
         if (!currentUser) return;
         const transcriptContent = outputEl.textContent.trim();
-        logEvent('save_transcript_attempt', { collection_id: collectionId, title_length: title.length });
+        logEvent('save_transcript_attempt', { collection_id: collectionId });
         const saveButtonEl = document.getElementById('saveConfirmButton');
         saveButtonEl.disabled = true;
         saveButtonEl.textContent = 'Saving...';
 
         try {
             await addDoc(collection(db, "users", currentUser.uid, "transcripts"), {
-                title: title,
-                content: transcriptContent,
-                collectionId: collectionId,
-                createdAt: serverTimestamp()
+                title, content: transcriptContent, collectionId, createdAt: serverTimestamp()
             });
             logEvent('save_transcript_success');
             saveButtonEl.textContent = 'Saved!';
-            saveButtonEl.classList.remove('btn-primary');
             saveButtonEl.classList.add('bg-green-600');
             setTimeout(() => closeModal(), 1200);
         } catch (error) {
-            console.error("Error saving transcript:", error);
             logEvent('save_transcript_failure', { error: error.message });
             saveButtonEl.disabled = false;
             saveButtonEl.textContent = 'Save Transcript';
+        }
+    }
+    
+    async function savePacketToLibrary(title, collectionId, packet) {
+        if (!currentUser || !packet) return;
+        logEvent('save_packet_attempt', { collection_id: collectionId });
+        const saveButtonEl = document.getElementById('saveConfirmButton');
+        saveButtonEl.disabled = true;
+        saveButtonEl.textContent = 'Saving...';
+
+        try {
+            await addDoc(collection(db, "users", currentUser.uid, "learning_packets"), {
+                title, packet, collectionId, createdAt: serverTimestamp()
+            });
+            logEvent('save_packet_success');
+            saveButtonEl.textContent = 'Saved!';
+            saveButtonEl.classList.add('bg-green-600');
+            setTimeout(() => closeModal(), 1200);
+        } catch (error) {
+            logEvent('save_packet_failure', { error: error.message });
+            saveButtonEl.disabled = false;
+            saveButtonEl.textContent = 'Save Packet';
         }
     }
 
@@ -601,9 +644,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const isRecording = mediaRecorder && mediaRecorder.state === 'recording';
         const hasTranscript = outputEl.textContent && !outputEl.textContent.startsWith("Your transcript") && !outputEl.textContent.startsWith("Transcribing") && !outputEl.textContent.startsWith("No audio");
         const isLoggedIn = !!currentUser;
+        
         recordButton.disabled = isRecording;
         recordButton.classList.toggle('recording', isRecording);
         recordButton.querySelector('span').textContent = isRecording ? 'Recording...' : 'Record';
+        
         stopButton.disabled = !isRecording;
         learningPacketButton.disabled = !hasTranscript || isRecording;
         saveButton.disabled = !hasTranscript || isRecording || !isLoggedIn;
@@ -671,8 +716,7 @@ document.addEventListener('DOMContentLoaded', () => {
     learningPacketButton.addEventListener('click', handleGeneratePacket);
     recordButton.addEventListener('click', startRecording);
     stopButton.addEventListener('click', stopRecording);
-    // REMOVED: summarizeButton event listener as it's now in the dropdown
-    saveButton.addEventListener('click', openSaveModal);
+    saveButton.addEventListener('click', () => openSaveModal(true, null)); // For saving transcripts
     logoutButton.addEventListener('click', handleLogout);
     debugButton.addEventListener('click', openDebugModal);
     
