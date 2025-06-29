@@ -90,7 +90,13 @@ async function generateEmbedding(text) {
 
 
 /**
+/**
  * Finds relevant documents by querying the vector database.
+ *
+ * REFINED: This version is more efficient. It inspects the metadata from the
+ * vector search results to determine the document type ('transcript' or 'packet')
+ * and then fetches documents from the correct collection in batches, avoiding
+ * unnecessary reads.
  */
 async function findRelevantDocuments(userId, question, collectionIds = []) {
     console.log(`Finding relevant documents for question: "${question}"`);
@@ -98,7 +104,7 @@ async function findRelevantDocuments(userId, question, collectionIds = []) {
     const questionEmbedding = await generateEmbedding(question);
 
     const endpoint = `projects/${PROJECT_ID}/locations/${LOCATION}/indexEndpoints/${VECTOR_SEARCH_ENDPOINT_ID}`;
-    
+
     // Construct the filters for the vector search query
     const filters = [{ namespace: 'userId', allow: [userId] }];
     if (collectionIds && collectionIds.length > 0) {
@@ -110,57 +116,101 @@ async function findRelevantDocuments(userId, question, collectionIds = []) {
         deployedIndexId: DEPLOYED_INDEX_ID,
         queries: [{
             embedding: questionEmbedding,
-            neighborCount: 5, // Find the top 5 most relevant documents
+            neighborCount: 5,
             restricts: filters
         }]
     };
-    
+
     const [findNeighborsResponse] = await predictionServiceClient.findNeighbors(findNeighborsRequest);
     const neighbors = findNeighborsResponse.nearestNeighbors[0]?.neighbors || [];
 
     if (neighbors.length === 0) {
+        console.log("No neighbors found in vector search.");
         return [];
     }
 
-    // Extract the document IDs from the neighbors
-    const docIds = neighbors.map(n => n.datapoint.datapointId);
-    
-    // Fetch the full documents from Firestore using the retrieved IDs
-    console.log(`Fetching documents from Firestore: ${docIds.join(', ')}`);
-    const docPromises = [];
-    
-    // Check both transcripts and packets collections
-    const transcriptsRef = db.collection(`users/${userId}/transcripts`);
-    const packetsRef = db.collection(`users/${userId}/learning_packets`);
-    
-    docIds.forEach(id => {
-        docPromises.push(transcriptsRef.doc(id).get());
-        docPromises.push(packetsRef.doc(id).get());
-    });
+    // --- NEW LOGIC START ---
+    // Separate document IDs by their type based on the vector metadata
+    const docIdsByType = {
+        transcripts: [],
+        learning_packets: []
+    };
 
-    const docSnapshots = await Promise.all(docPromises);
-    const foundDocs = [];
-    docSnapshots.forEach(docSnap => {
-        if (docSnap.exists) {
-            foundDocs.push({ id: docSnap.id, ...docSnap.data() });
+    neighbors.forEach(n => {
+        const docId = n.datapoint.datapointId;
+        const typeRestriction = n.datapoint.restricts.find(r => r.namespace === 'documentType');
+        const docType = typeRestriction ? typeRestriction.allow[0] : null;
+
+        if (docType === 'transcript') {
+            docIdsByType.transcripts.push(docId);
+        } else if (docType === 'packet') {
+            docIdsByType.learning_packets.push(docId);
         }
     });
 
+    console.log("Fetching documents from Firestore by type:", docIdsByType);
+
+    const docPromises = [];
+    const foundDocs = [];
+
+    // Create efficient batch queries for each type
+    if (docIdsByType.transcripts.length > 0) {
+        const transcriptsRef = db.collection(`users/${userId}/transcripts`);
+        const transcriptQuery = transcriptsRef.where(admin.firestore.FieldPath.documentId(), 'in', docIdsByType.transcripts);
+        docPromises.push(transcriptQuery.get());
+    }
+    if (docIdsByType.learning_packets.length > 0) {
+        const packetsRef = db.collection(`users/${userId}/learning_packets`);
+        const packetQuery = packetsRef.where(admin.firestore.FieldPath.documentId(), 'in', docIdsByType.learning_packets);
+        docPromises.push(packetQuery.get());
+    }
+
+    const querySnapshots = await Promise.all(docPromises);
+
+    querySnapshots.forEach(snapshot => {
+        snapshot.forEach(docSnap => {
+            if (docSnap.exists) {
+                foundDocs.push({ id: docSnap.id, ...docSnap.data() });
+            }
+        });
+    });
+    // --- NEW LOGIC END ---
+
+    console.log(`Successfully fetched ${foundDocs.length} documents.`);
     return foundDocs;
 }
 
 /**
  * Generates a final, synthesized answer based on the user's question and retrieved documents.
+ *
+ * REFINED: This version now properly formats the context for learning packets
+ * instead of using JSON.stringify. It creates a clean, readable block of text
+ * from the summary and key concepts, improving the LLM's ability to understand the source.
  */
 async function generateChatResponse(question, documents) {
     console.log("Synthesizing final answer from relevant documents.");
 
-    const context = documents.map(doc => `
-        Source (Title: ${doc.title}):
-        ---
-        ${doc.content || JSON.stringify(doc.packet)}
-        ---
-    `).join('\n\n');
+    // --- NEW LOGIC START ---
+    const context = documents.map(doc => {
+        let docContent = '';
+        if (doc.content) { // This is a transcript
+            docContent = doc.content;
+        } else if (doc.packet) { // This is a learning packet
+            const summaryText = doc.packet.summary || '';
+            const conceptsText = (doc.packet.keyConcepts || [])
+              .map(c => `- ${c.concept}: ${c.definition}`)
+              .join('\n');
+            docContent = `Summary:\n${summaryText}\n\nKey Concepts:\n${conceptsText}`;
+        }
+        
+        return `
+Source (Title: ${doc.title}):
+---
+${docContent.trim()}
+---
+        `;
+    }).join('\n\n');
+    // --- NEW LOGIC END ---
 
     const prompt = `
         You are a helpful learning assistant. Your task is to answer the user's question based *only* on the provided context from their personal library.
