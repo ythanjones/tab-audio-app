@@ -1,5 +1,5 @@
 // =================================================================
-// LIBRARY PAGE SCRIPT (v2.2 - Final)
+// LIBRARY PAGE SCRIPT (v2.3 - Chat Enabled)
 // =================================================================
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js";
 import { 
@@ -28,21 +28,16 @@ const firebaseConfig = {
     storageBucket: "tab-audio-app.firebasestorage.app",
     messagingSenderId: "715569829205",
     appId: "1:715569829205:web:216b98f170035f2fcf0bdc",
-    // UPDATED: Correct Measurement ID
     measurementId: "G-X9T1WHYM35"
 };
 
 document.addEventListener('DOMContentLoaded', () => {
 
-    // --- Simple Logger for this page ---
-    const logEvent = (name, params = {}) => {
-        console.log(`LIBRARY EVENT: ${name}`, params);
-    };
-
-    // --- STATE VARIABLES ---
+    // --- Constants & State ---
+    const QUERY_SERVICE_URL = 'https://query-service-715569829205.europe-west2.run.app/chat';
     let currentUser = null;
     let db, auth;
-    let activeCollectionId = null;
+    let activeCollectionId = 'all'; // Default to all collections
 
     // --- DOM ELEMENT REFERENCES ---
     const collectionsListEl = document.getElementById('collectionsList');
@@ -52,7 +47,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const newCollectionBtn = document.getElementById('newCollectionBtn');
     const deleteCollectionBtn = document.getElementById('deleteCollectionBtn');
     const contentPanel = document.getElementById('library-content');
-
+    const chatMessagesEl = document.getElementById('chat-messages');
+    const chatInputEl = document.getElementById('chat-input');
+    const sendChatBtn = document.getElementById('send-chat-btn');
+    
+    // --- Simple Logger for this page ---
+    const logEvent = (name, params = {}) => {
+        console.log(`LIBRARY EVENT: ${name}`, params);
+    };
 
     // --- INITIALIZATION ---
     try {
@@ -86,7 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!currentUser) return;
         logEvent('library_load_attempt');
         collectionsListEl.innerHTML = '<li>Loading...</li>';
-        contentPanel.classList.add('hidden'); // Hide content until loaded
+        contentPanel.classList.add('hidden');
 
         const collectionsRef = collection(db, "users", currentUser.uid, "collections");
         const q = query(collectionsRef, orderBy("createdAt", "desc"));
@@ -131,7 +133,7 @@ document.addEventListener('DOMContentLoaded', () => {
         li.dataset.id = collectionData.id;
 
         const a = document.createElement('a');
-        a.href = "#"; // Prevent page reload
+        a.href = "#";
         a.title = collectionData.name;
         a.innerHTML = `<i data-feather="folder"></i><span class="truncate">${collectionData.name}</span>`;
         a.onclick = (e) => {
@@ -158,20 +160,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             const items = [];
-            
-            // Query transcripts
             const transcriptsRef = collection(db, "users", currentUser.uid, "transcripts");
-            const tq = query(transcriptsRef, where("collectionId", "==", collectionId));
+            const tq = query(transcriptsRef, where("collectionId", "==", collectionId), orderBy("createdAt", "desc"));
             const tSnapshot = await getDocs(tq);
             tSnapshot.forEach(doc => items.push({ id: doc.id, type: 'transcript', ...doc.data() }));
 
-            // --- NEW: Query learning packets ---
             const packetsRef = collection(db, "users", currentUser.uid, "learning_packets");
-            const pq = query(packetsRef, where("collectionId", "==", collectionId));
+            const pq = query(packetsRef, where("collectionId", "==", collectionId), orderBy("createdAt", "desc"));
             const pSnapshot = await getDocs(pq);
             pSnapshot.forEach(doc => items.push({ id: doc.id, type: 'packet', ...doc.data() }));
 
-            // Sort all combined items by date
             items.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
 
             itemsListEl.innerHTML = ''; 
@@ -195,15 +193,14 @@ document.addEventListener('DOMContentLoaded', () => {
         itemDiv.className = 'library-item';
         itemDiv.dataset.id = itemData.id;
 
-        // --- UPDATED: Handle 'packet' type ---
         let iconType, badgeClass, badgeText;
         if (itemData.type === 'transcript') {
             iconType = 'file-text';
             badgeClass = 'transcript-badge';
             badgeText = 'Transcript';
-        } else { // It's a packet
+        } else {
             iconType = 'gift';
-            badgeClass = 'packet-badge'; // We should add a style for this
+            badgeClass = 'packet-badge';
             badgeText = 'Learning Packet';
         }
 
@@ -249,7 +246,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function deleteItem(itemId, itemType) {
         if (!currentUser || !confirm(`Are you sure you want to delete this ${itemType}?`)) return;
         logEvent('item_delete_attempt', { itemId, itemType });
-        const collectionName = itemType === 'transcript' ? 'transcripts' : 'flashcardDecks';
+        const collectionName = itemType === 'transcript' ? 'transcripts' : 'learning_packets';
         try {
             await deleteDoc(doc(db, "users", currentUser.uid, collectionName, itemId));
             logEvent('item_delete_success', { itemId });
@@ -274,24 +271,89 @@ document.addEventListener('DOMContentLoaded', () => {
             const tSnapshot = await getDocs(tq);
             tSnapshot.forEach(doc => batch.delete(doc.ref));
 
+            const packetsRef = collection(db, "users", currentUser.uid, "learning_packets");
+            const pq = query(packetsRef, where("collectionId", "==", activeCollectionId));
+            const pSnapshot = await getDocs(pq);
+            pSnapshot.forEach(doc => batch.delete(doc.ref));
+
             const collectionDocRef = doc(db, "users", currentUser.uid, "collections", activeCollectionId);
             batch.delete(collectionDocRef);
 
             await batch.commit();
             logEvent('collection_delete_success', { collectionId: activeCollectionId });
-
             loadUserLibrary();
-
         } catch (error) {
             console.error("Error deleting collection:", error);
             logEvent('collection_delete_failure', { collectionId: activeCollectionId, error: error.message });
             alert("Could not delete collection.");
         }
     }
+    
+    // =================================================================
+    // CHAT LOGIC
+    // =================================================================
+
+    async function handleChatSubmit() {
+        const question = chatInputEl.value.trim();
+        if (!question || !currentUser) return;
+
+        chatInputEl.value = '';
+        addChatMessage(question, 'user');
+        sendChatBtn.disabled = true;
+        addChatMessage('<div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>', 'bot', true);
+
+        const payload = {
+            userId: currentUser.uid,
+            question: question,
+            collectionIds: activeCollectionId === 'all' ? [] : [activeCollectionId]
+        };
+
+        try {
+            const response = await fetch(QUERY_SERVICE_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            chatMessagesEl.removeChild(chatMessagesEl.lastChild);
+
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.error || 'The chat service returned an error.');
+            }
+
+            const data = await response.json();
+            addChatMessage(data.answer, 'bot');
+        } catch (error) {
+            console.error("Error during chat:", error);
+            addChatMessage(`Sorry, I ran into an error: ${error.message}`, 'bot');
+        } finally {
+            sendChatBtn.disabled = false;
+        }
+    }
+
+    function addChatMessage(message, sender, isLoading = false) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `chat-message ${sender}-message`;
+        if(isLoading) {
+            messageDiv.classList.add('loading');
+        }
+        messageDiv.innerHTML = `<p>${message.replace(/\n/g, '<br>')}</p>`;
+        chatMessagesEl.appendChild(messageDiv);
+        chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight; // Auto-scroll
+    }
 
     // =================================================================
     // EVENT LISTENERS
     // =================================================================
+    
+    sendChatBtn.addEventListener('click', handleChatSubmit);
+    chatInputEl.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            handleChatSubmit();
+        }
+    });
 
     newCollectionBtn.addEventListener('click', () => {
         logEvent('ui_action', { component: 'new_collection_button' });

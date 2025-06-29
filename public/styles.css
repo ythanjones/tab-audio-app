@@ -642,4 +642,95 @@
       padding-top: 1.5rem;
       border-top: 1px solid var(--color-border);
   }
-  
+  /* ========================================= */
+/* CHAT INTERFACE STYLES                     */
+/* ========================================= */
+
+.chat-interface {
+    margin-top: 1.5rem;
+    border-top: 1px solid var(--color-border);
+    padding-top: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.chat-messages {
+    flex-grow: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    max-height: 30vh; /* Or adjust as needed */
+}
+
+.chat-message {
+    padding: 0.75rem 1rem;
+    border-radius: 0.5rem;
+    max-width: 85%;
+    line-height: 1.6;
+}
+
+.user-message {
+    background-color: var(--color-accent);
+    color: var(--color-bg);
+    align-self: flex-end;
+    border-bottom-right-radius: 0;
+}
+
+.bot-message {
+    background-color: var(--color-surface);
+    color: var(--color-text-body);
+    align-self: flex-start;
+    border-bottom-left-radius: 0;
+}
+
+.bot-message.loading {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.chat-input-area {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+#chat-input {
+    flex-grow: 1;
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    color: var(--color-text-body);
+    border-radius: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    resize: none;
+    font-size: 0.875rem;
+    min-height: 42px;
+}
+#chat-input:focus {
+    outline: none;
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px var(--color-accent-focus-ring);
+}
+
+#send-chat-btn {
+    background-color: var(--color-accent);
+    color: var(--color-bg);
+    border-radius: 0.5rem;
+    padding: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition-fast);
+    height: 42px;
+    width: 42px;
+}
+#send-chat-btn:hover {
+    background-color: var(--color-accent-hover);
+}
+#send-chat-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
