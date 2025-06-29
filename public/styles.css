@@ -1,490 +1,5 @@
 /* ========================================= */
-/* "DIGITAL CARREL" THEME V2 (Redesign)      */
-/* ========================================= */
-
-/* --- Custom Properties (Theme Variables) --- */
-:root {
-  --font-primary: 'Inter', sans-serif;
-  --font-display: 'Lora', serif;
-
-  --color-bg: #0f172a; /* slate-900 */
-  --color-surface: #1e293b; /* slate-800 */
-  --color-surface-light: #334155; /* slate-700 */
-
-  --color-border: #475569; /* slate-600 */
-  
-  --color-text-heading: #f1f5f9; /* slate-100 */
-  --color-text-body: #cbd5e1; /* slate-300 */
-  --color-text-muted: #64748b; /* slate-500 */
-
-  --color-accent: #f59e0b; /* amber-500 */
-  --color-accent-hover: #d97706; /* amber-600 */
-  --color-accent-focus-ring: rgba(245, 158, 11, 0.5);
-
-  --color-danger: #dc2626; /* red-600 */
-  --color-danger-hover: #b91c1c; /* red-700 */
-
-  --transition-fast: all 0.2s ease-in-out;
-}
-
-/* --- Base & Layout --- */
-body {
-  background-color: var(--color-bg);
-  font-family: var(--font-primary);
-  color: var(--color-text-body);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 100vh;
-  padding: 1rem;
-}
-
-#app-container {
-  width: 100%;
-  max-width: 700px;
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-/* --- Header & User Info --- */
-.main-header {
-  position: absolute;
-  top: 1.5rem;
-  right: 1.5rem;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem; /* Adjusted gap for the new icon buttons */
-}
-
-/* This is the new box just for the email */
-.user-email-box {
-  font-size: 0.875rem;
-  color: var(--color-text-body);
-  background-color: var(--color-surface);
-  padding: 0.5rem 1rem;
-  border-radius: 9999px;
-  border: 1px solid var(--color-border);
-}
-
-/* This is the new style for the circular icon buttons */
-.header-icon-button {
-  display: flex; /* Ensures icon inside is centered */
-  align-items: center;
-  justify-content: center;
-  color: var(--color-text-muted);
-  background-color: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 9999px;
-  width: 40px;  /* Explicit size */
-  height: 40px; /* Explicit size */
-  transition: var(--transition-fast);
-}
-
-.header-icon-button:hover {
-  color: var(--color-accent);
-  border-color: var(--color-accent);
-}
-
-/* Specific hover color for the logout button */
-.header-icon-button#logoutButton:hover {
-  color: var(--color-danger);
-  border-color: var(--color-danger);
-}
-
-/* --- Buttons --- */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1.5rem;
-  font-size: 1rem;
-  font-weight: 500;
-  border-radius: 0.5rem;
-  border: 1px solid transparent;
-  transition: var(--transition-fast);
-  cursor: pointer;
-}
-
-.btn:focus {
-  outline: 2px solid transparent;
-  outline-offset: 2px;
-  box-shadow: 0 0 0 3px var(--color-accent-focus-ring);
-}
-
-.btn.btn-primary {
-  background-color: var(--color-accent);
-  color: var(--color-surface);
-}
-.btn.btn-primary:hover {
-  background-color: var(--color-accent-hover);
-}
-
-.btn.btn-secondary {
-  background-color: var(--color-surface-light);
-  color: var(--color-text-heading);
-  border-color: var(--color-border);
-}
-.btn.btn-secondary:hover {
-  background-color: var(--color-border);
-}
-
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn#recordButton.recording {
-    background-color: var(--color-danger);
-}
-.btn#recordButton.recording:hover {
-    background-color: var(--color-danger-hover);
-}
-
-
-/* --- Footer & Pro Tools --- */
-.main-footer {
-  display: flex;
-  justify-content: center;
-}
-
-.pro-tools-btn {
-    padding-left: 1rem;
-    padding-right: 1rem;
-}
-
-.pro-tools-btn .chevron {
-    width: 1rem;
-    height: 1rem;
-    transition: transform 0.2s ease-in-out;
-}
-
-.pro-tools-btn[aria-expanded="true"] .chevron {
-    transform: rotate(180deg);
-}
-
-#aiDropdownMenu {
-    background-color: var(--color-surface);
-}
-.ai-button {
-  display: block;
-  width: 100%;
-  text-align: left;
-  padding: 0.5rem 1rem;
-  font-size: 0.875rem;
-  color: var(--color-text-body);
-  transition: var(--transition-fast);
-}
-.ai-button:hover {
-  background-color: var(--color-surface-light);
-  color: var(--color-text-heading);
-}
-.ai-button.pro-feature {
-    color: var(--color-accent);
-}
-
-/* --- Modal --- */
-#modal-backdrop {
-  transition: opacity 0.3s ease;
-}
-
-.modal-content-area {
-  background-color: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 0.75rem;
-  width: 100%;
-  max-width: 600px;
-  padding: 1.5rem;
-  transition: all 0.3s ease;
-  transform: scale(0.95);
-  opacity: 0;
-}
-
-#modal-backdrop.opacity-100 .modal-content-area {
-    transform: scale(1);
-    opacity: 1;
-}
-/* ========================================= */
-/* "DIGITAL CARREL" THEME V2 (Redesign)      */
-/* ========================================= */
-
-/* --- Custom Properties (Theme Variables) --- */
-:root {
-  --font-primary: 'Inter', sans-serif;
-  --font-display: 'Lora', serif;
-
-  --color-bg: #0f172a; /* slate-900 */
-  --color-surface: #1e293b; /* slate-800 */
-  --color-surface-light: #334155; /* slate-700 */
-
-  --color-border: #475569; /* slate-600 */
-  
-  --color-text-heading: #f1f5f9; /* slate-100 */
-  --color-text-body: #cbd5e1; /* slate-300 */
-  --color-text-muted: #64748b; /* slate-500 */
-
-  --color-accent: #f59e0b; /* amber-500 */
-  --color-accent-hover: #d97706; /* amber-600 */
-  --color-accent-focus-ring: rgba(245, 158, 11, 0.5);
-
-  --color-danger: #dc2626; /* red-600 */
-  --color-danger-hover: #b91c1c; /* red-700 */
-
-  --transition-fast: all 0.2s ease-in-out;
-}
-
-/* --- Base & Layout --- */
-body {
-  background-color: var(--color-bg);
-  font-family: var(--font-primary);
-  color: var(--color-text-body);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 100vh;
-  padding: 1rem;
-}
-
-#app-container {
-  width: 100%;
-  max-width: 700px;
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-/* --- Header & User Info --- */
-.main-header {
-  position: absolute;
-  top: 1.5rem;
-  right: 1.5rem;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  /* The background, padding, and border have been removed */
-}
-
-.user-email {
-    font-size: 0.875rem;
-    color: var(--color-text-body);
-}
-
-.library-link, .logout-button {
-    color: var(--color-text-muted);
-    transition: var(--transition-fast);
-}
-
-.library-link:hover, .logout-button:hover {
-    color: var(--color-accent);
-}
-
-.logout-button:hover {
-    color: var(--color-danger);
-}
-
-
-/* --- Core Content & Transcript Box --- */
-.core-content {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  width: 100%;
-}
-
-.control-section {
-  display: flex;
-  justify-content: center;
-  gap: 1rem;
-}
-
-.output-box {
-  background-color: var(--color-surface);
-  color: var(--color-text-body);
-  border: 1px solid var(--color-border);
-  border-radius: 0.75rem;
-  padding: 1.5rem;
-  min-height: 40vh; /* Takes up a good portion of the screen */
-  white-space: pre-wrap;
-  word-wrap: break-word;
-  overflow-y: auto;
-  font-size: 1rem;
-  line-height: 1.6;
-}
-
-.output-box:empty::before {
-  content: attr(placeholder);
-  color: var(--color-text-muted);
-  font-style: italic;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100%;
-}
-
-/* --- Buttons --- */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1.5rem;
-  font-size: 1rem;
-  font-weight: 500;
-  border-radius: 0.5rem;
-  border: 1px solid transparent;
-  transition: var(--transition-fast);
-  cursor: pointer;
-}
-
-.btn:focus {
-  outline: 2px solid transparent;
-  outline-offset: 2px;
-  box-shadow: 0 0 0 3px var(--color-accent-focus-ring);
-}
-
-.btn.btn-primary {
-  background-color: var(--color-accent);
-  color: var(--color-surface);
-}
-.btn.btn-primary:hover {
-  background-color: var(--color-accent-hover);
-}
-
-.btn.btn-secondary {
-  background-color: var(--color-surface-light);
-  color: var(--color-text-heading);
-  border-color: var(--color-border);
-}
-.btn.btn-secondary:hover {
-  background-color: var(--color-border);
-}
-
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn#recordButton.recording {
-    background-color: var(--color-danger);
-}
-.btn#recordButton.recording:hover {
-    background-color: var(--color-danger-hover);
-}
-
-
-/* --- Footer & Pro Tools --- */
-.main-footer {
-  display: flex;
-  justify-content: center;
-}
-
-.pro-tools-btn {
-    padding-left: 1rem;
-    padding-right: 1rem;
-}
-
-.pro-tools-btn .chevron {
-    width: 1rem;
-    height: 1rem;
-    transition: transform 0.2s ease-in-out;
-}
-
-.pro-tools-btn[aria-expanded="true"] .chevron {
-    transform: rotate(180deg);
-}
-
-#aiDropdownMenu {
-    background-color: var(--color-surface);
-}
-.ai-button {
-  display: block;
-  width: 100%;
-  text-align: left;
-  padding: 0.5rem 1rem;
-  font-size: 0.875rem;
-  color: var(--color-text-body);
-  transition: var(--transition-fast);
-}
-.ai-button:hover {
-  background-color: var(--color-surface-light);
-  color: var(--color-text-heading);
-}
-.ai-button.pro-feature {
-    color: var(--color-accent);
-}
-
-/* --- Modal --- */
-#modal-backdrop {
-  transition: opacity 0.3s ease;
-}
-
-.modal-content-area {
-  background-color: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 0.75rem;
-  width: 100%;
-  max-width: 600px;
-  padding: 1.5rem;
-  transition: all 0.3s ease;
-  transform: scale(0.95);
-  opacity: 0;
-}
-
-#modal-backdrop.opacity-100 .modal-content-area {
-    transform: scale(1);
-    opacity: 1;
-}
-
-/* --- Floating Debug Button --- */
-.debug-button {
-  position: fixed;
-  bottom: 1.5rem;
-  right: 1.5rem;
-  background-color: var(--color-surface);
-  color: var(--color-text-muted);
-  border: 1px solid var(--color-border);
-  border-radius: 9999px;
-  padding: 0.75rem;
-  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-  transition: var(--transition-fast);
-  z-index: 100;
-}
-
-.debug-button:hover {
-  background-color: var(--color-accent);
-  color: var(--color-surface);
-  transform: scale(1.1);
-}
-
-/* Style for the debug modal's content and copy button */
-#copyLogBtn {
-    background-color: var(--color-accent);
-    color: var(--color-surface);
-    margin-top: 1rem;
-    padding: 0.5rem 1rem;
-    border-radius: 0.375rem;
-    font-weight: 500;
-    transition: var(--transition-fast);
-}
-#copyLogBtn:hover {
-    background-color: var(--color-accent-hover);
-}
-
-#debug-report-content {
-    background-color: var(--color-bg);
-    color: var(--color-text-body);
-    padding: 1rem;
-    border-radius: 0.5rem;
-    max-height: 50vh;
-    overflow-y: auto;
-    font-family: monospace;
-    font-size: 0.8rem;
-    white-space: pre-wrap;
-    border: 1px solid var(--color-border);
-}
-/* ========================================= */
-/* "DIGITAL CARREL" THEME V2 (Redesign)      */
+/* "DIGITAL CARREL" THEME V2.3               */
 /* ========================================= */
 
 /* --- Custom Properties (Theme Variables) --- */
@@ -539,29 +54,36 @@ body {
     right: 1.5rem;
     display: flex;
     align-items: center;
-    gap: 1rem;
-    background-color: var(--color-surface);
-    padding: 0.5rem 1rem;
-    border-radius: 9999px;
-    border: 1px solid var(--color-border);
+    gap: 0.75rem;
 }
 
-.user-email {
+.user-email-box {
     font-size: 0.875rem;
     color: var(--color-text-body);
+    padding: 0.5rem 0.25rem;
 }
 
-.library-link, .logout-button {
+.header-icon-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     color: var(--color-text-muted);
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 9999px;
+    width: 40px;
+    height: 40px;
     transition: var(--transition-fast);
 }
 
-.library-link:hover, .logout-button:hover {
+.header-icon-button:hover {
     color: var(--color-accent);
+    border-color: var(--color-accent);
 }
 
-.logout-button:hover {
+.header-icon-button#logoutButton:hover {
     color: var(--color-danger);
+    border-color: var(--color-danger);
 }
 
 
@@ -585,7 +107,7 @@ body {
   border: 1px solid var(--color-border);
   border-radius: 0.75rem;
   padding: 1.5rem;
-  min-height: 40vh; /* Takes up a good portion of the screen */
+  min-height: 40vh;
   white-space: pre-wrap;
   word-wrap: break-word;
   overflow-y: auto;
@@ -738,7 +260,6 @@ body {
   transform: scale(1.1);
 }
 
-/* Style for the debug modal's content and copy button */
 #copyLogBtn {
     background-color: var(--color-accent);
     color: var(--color-surface);
@@ -771,12 +292,12 @@ body {
 
 .library-body {
     padding: 0;
-    align-items: stretch; /* Allow container to fill height */
+    align-items: stretch;
 }
 
 #library-container {
     display: grid;
-    grid-template-columns: 280px 1fr; /* Sidebar and main content */
+    grid-template-columns: 280px 1fr;
     width: 100%;
     height: 100vh;
     max-width: none;
@@ -837,7 +358,7 @@ body {
     border: 1px solid var(--color-border);
     color: var(--color-text-body);
     border-radius: 0.375rem;
-    padding: 0.5rem 0.75rem 0.5rem 2.5rem; /* Padding for icon */
+    padding: 0.5rem 0.75rem 0.5rem 2.5rem;
     font-size: 0.875rem;
 }
 .search-input::placeholder {
@@ -953,10 +474,16 @@ body {
     display: flex;
     align-items: center;
     gap: 1rem;
+    min-width: 0; /* Fix for flexbox truncation */
+}
+
+.item-details {
+    min-width: 0; /* Fix for flexbox truncation */
 }
 
 .item-icon {
     color: var(--color-accent);
+    flex-shrink: 0; /* Prevent icon from shrinking */
 }
 
 .item-title {
@@ -1014,18 +541,10 @@ body {
     text-align: center;
     margin-top: 0.5rem;
 }
+
 /* --- FIX: Text Truncation for Library Page --- */
-
-/* Truncates long collection names in the sidebar */
-.collection-item a span {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* Truncates long item titles in the main content panel */
-.item-title {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.truncate {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }

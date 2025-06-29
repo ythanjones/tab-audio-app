@@ -1,5 +1,5 @@
 // =================================================================
-// LIBRARY PAGE SCRIPT (v2.1 - Bug Fix & Complete)
+// LIBRARY PAGE SCRIPT (v2.2 - Final)
 // =================================================================
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js";
 import { 
@@ -28,7 +28,8 @@ const firebaseConfig = {
     storageBucket: "tab-audio-app.firebasestorage.app",
     messagingSenderId: "715569829205",
     appId: "1:715569829205:web:216b98f170035f2fcf0bdc",
-    measurementId: "G-BDW8YWD1QW"
+    // UPDATED: Correct Measurement ID
+    measurementId: "G-X9T1WHYM35"
 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -130,8 +131,9 @@ document.addEventListener('DOMContentLoaded', () => {
         li.dataset.id = collectionData.id;
 
         const a = document.createElement('a');
+        a.href = "#"; // Prevent page reload
         a.title = collectionData.name;
-        a.innerHTML = `<i data-feather="folder"></i><span>${collectionData.name}</span>`;
+        a.innerHTML = `<i data-feather="folder"></i><span class="truncate">${collectionData.name}</span>`;
         a.onclick = (e) => {
             e.preventDefault();
             loadCollectionItems(collectionData.id, collectionData.name);
@@ -186,12 +188,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const badgeClass = itemData.type === 'transcript' ? 'transcript-badge' : 'flashcard-badge';
         const badgeText = itemData.type === 'transcript' ? 'Transcript' : 'Flashcard Deck';
 
-        // *** FIX: Replaced the '...' placeholder with the actual HTML content ***
         itemDiv.innerHTML = `
             <div class="item-main">
                 <i data-feather="${iconType}" class="item-icon"></i>
                 <div class="item-details">
-                    <p class="item-title" title="${itemData.title}">${itemData.title}</p>
+                    <p class="item-title truncate" title="${itemData.title}">${itemData.title}</p>
                     <span class="item-badge ${badgeClass}">${badgeText}</span>
                 </div>
             </div>
@@ -218,7 +219,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 createdAt: serverTimestamp()
             });
             logEvent('collection_create_success');
-            // Reload the whole library to ensure a clean state
             loadUserLibrary();
         } catch (error) {
             console.error("Error creating new collection: ", error);
@@ -226,8 +226,7 @@ document.addEventListener('DOMContentLoaded', () => {
             alert("Could not create collection.");
         }
     }
-
-    // *** ADDED: The missing deleteItem and deleteActiveCollection functions ***
+    
     async function deleteItem(itemId, itemType) {
         if (!currentUser || !confirm(`Are you sure you want to delete this ${itemType}?`)) return;
         logEvent('item_delete_attempt', { itemId, itemType });
@@ -235,7 +234,6 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             await deleteDoc(doc(db, "users", currentUser.uid, collectionName, itemId));
             logEvent('item_delete_success', { itemId });
-            // Refresh the view
             const currentCollectionName = currentCollectionTitleEl.textContent;
             loadCollectionItems(activeCollectionId, currentCollectionName);
         } catch (error) {
