@@ -20,7 +20,6 @@ const firebaseConfig = {
     measurementId: "G-X9T1WHYM35"
 };
 
-// --- This wrapper ensures the code runs only after the page is fully loaded ---
 document.addEventListener('DOMContentLoaded', () => {
 
     // =================================================================
@@ -51,6 +50,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- State variables & Constants ---
     const AI_JUDGE_URL = 'https://idx-tab-audio-app-25992832-715569829205.europe-west2.run.app/grade-response';
+    const AGENT_SERVICE_URL = 'https://learning-agent-service-715569829205.europe-west2.run.app/generate-packet'; 
+    
     let currentUser = null;
     let db, auth, analytics;
     let mediaRecorder;
@@ -61,9 +62,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let promptsCache = new Map();
 
     // --- DOM element references ---
+    const learningPacketButton = document.getElementById('learningPacketButton');
+    const summarizeButton = document.getElementById('summarizeButton');
     const recordButton = document.getElementById('recordButton');
     const stopButton = document.getElementById('stopButton');
-    const summarizeButton = document.getElementById('summarizeButton');
     const saveButton = document.getElementById('saveButton');
     const outputEl = document.getElementById('transcriptionOutput');
     const loginContainer = document.getElementById('loginContainer');
@@ -306,17 +308,83 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // =================================================================
-    // AI, FEEDBACK & LIBRARY FUNCTIONS
+    // AGENT, AI & FEEDBACK FUNCTIONS
     // =================================================================
-    
-    function handleSummarize() {
-        const promptId = 'summarize';
-        const promptTemplate = promptsCache.get(promptId);
-        if (!promptTemplate) {
-            openModal("Error", "Could not find the 'summarize' prompt.");
-            return;
+
+    async function handleGeneratePacket() {
+        const apiKey = getApiKey();
+        if (!apiKey) return;
+
+        logEvent('agent_action_initiated', { action: 'generate_learning_packet' });
+        openModal("Generating Learning Packet", '<div class="flex justify-center items-center"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div><p class="ml-4">The agent is working...</p></div>');
+        
+        const transcript = outputEl.textContent;
+        
+        try {
+            const response = await fetch(AGENT_SERVICE_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ transcript })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || `Agent service failed with status: ${response.status}`);
+            }
+
+            const learningPacket = await response.json();
+            logEvent('agent_action_success');
+            displayLearningPacket(learningPacket);
+
+        } catch (error) {
+            console.error("Error calling agent service:", error);
+            logEvent('agent_action_failure', { error: error.message });
+            modalBody.innerHTML = `<p class="text-red-400">Could not generate Learning Packet. Error: ${error.message}</p>`;
         }
-        generateTextWithGemini(promptTemplate, "Summary", promptId);
+    }
+    
+    function displayLearningPacket(packet) {
+        modalTitle.textContent = "Your Learning Packet";
+        let html = '<div class="space-y-6">';
+
+        if (packet.summary && !packet.summary.startsWith("Error:")) {
+            html += `
+                <div>
+                    <h3 class="text-lg font-bold text-amber-500 mb-2 border-b border-slate-700 pb-1">Summary</h3>
+                    <p class="text-slate-300 whitespace-pre-wrap">${packet.summary}</p>
+                </div>
+            `;
+        }
+
+        if (packet.keyConcepts && packet.keyConcepts.length > 0 && !packet.keyConcepts[0].concept.startsWith("Error")) {
+            html += `
+                <div>
+                    <h3 class="text-lg font-bold text-amber-500 mb-2 border-b border-slate-700 pb-1">Key Concepts</h3>
+                    <ul class="space-y-2 list-disc list-inside">
+                        ${packet.keyConcepts.map(item => `<li><strong>${item.concept}:</strong> ${item.definition}</li>`).join('')}
+                    </ul>
+                </div>
+            `;
+        }
+
+        if (packet.flashcards && packet.flashcards.length > 0 && !packet.flashcards[0].front.startsWith("Error")) {
+            html += `
+                <div>
+                    <h3 class="text-lg font-bold text-amber-500 mb-2 border-b border-slate-700 pb-1">Flashcards</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        ${packet.flashcards.map(card => `
+                            <div class="bg-slate-800 p-3 rounded-md border border-slate-700">
+                                <p class="font-semibold">Q: ${card.front}</p>
+                                <p class="text-slate-400 mt-1">A: ${card.back}</p>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+        
+        html += '</div>';
+        modalBody.innerHTML = html;
     }
     
     async function generateTextWithGemini(promptTemplate, taskTitle, promptId) {
@@ -537,9 +605,9 @@ document.addEventListener('DOMContentLoaded', () => {
         recordButton.classList.toggle('recording', isRecording);
         recordButton.querySelector('span').textContent = isRecording ? 'Recording...' : 'Record';
         stopButton.disabled = !isRecording;
-        summarizeButton.disabled = !hasTranscript || isRecording;
-        aiDropdownButton.disabled = !hasTranscript || isRecording;
+        learningPacketButton.disabled = !hasTranscript || isRecording;
         saveButton.disabled = !hasTranscript || isRecording || !isLoggedIn;
+        aiDropdownButton.disabled = !hasTranscript || isRecording;
     }
 
     function getApiKey() {
@@ -600,9 +668,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // =================================================================
     // EVENT LISTENERS
     // =================================================================
+    learningPacketButton.addEventListener('click', handleGeneratePacket);
     recordButton.addEventListener('click', startRecording);
     stopButton.addEventListener('click', stopRecording);
-    summarizeButton.addEventListener('click', handleSummarize);
+    // REMOVED: summarizeButton event listener as it's now in the dropdown
     saveButton.addEventListener('click', openSaveModal);
     logoutButton.addEventListener('click', handleLogout);
     debugButton.addEventListener('click', openDebugModal);
@@ -623,7 +692,7 @@ document.addEventListener('DOMContentLoaded', () => {
     aiButtons.forEach(button => {
         button.addEventListener('click', () => {
             const promptId = button.dataset.promptId;
-            const taskTitle = button.textContent;
+            const taskTitle = button.textContent.replace(' Only','');
             const promptTemplate = promptsCache.get(promptId);
 
             if (!promptTemplate) {
