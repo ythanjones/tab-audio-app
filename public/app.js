@@ -17,7 +17,8 @@ const firebaseConfig = {
     storageBucket: "tab-audio-app.firebasestorage.app",
     messagingSenderId: "715569829205",
     appId: "1:715569829205:web:216b98f170035f2fcf0bdc",
-    measurementId: "G-BDW8YWD1QW"
+    // UPDATED: Correct Measurement ID
+    measurementId: "G-X9T1WHYM35"
 };
 
 // --- This wrapper ensures the code runs only after the page is fully loaded ---
@@ -79,6 +80,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const modalClose = document.getElementById('modal-close');
     const debugButton = document.getElementById('debugButton');
 
+    // ... The rest of the app.js file remains the same ...
+    
     // =================================================================
     // INITIALIZATION & AUTHENTICATION
     // =================================================================
@@ -124,7 +127,6 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('loginPromptButton').addEventListener('click', openLoginModal);
     }
 
-    // FIXED: The loginHtml constant was missing its content.
     function openLoginModal() {
         logEvent('ui_action', { component: 'login_modal', action: 'open' });
         const loginHtml = `
@@ -239,11 +241,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             audioStream = new MediaStream(displayStream.getAudioTracks());
 
-            // --- THIS IS THE FIX ---
-            // Immediately stop the video track from the original stream, which will
-            // remove the browser's "sharing" indicator without affecting the audio capture.
             displayStream.getVideoTracks().forEach(track => track.stop());
-            // --------------------
 
             audioChunks = [];
 
@@ -252,7 +250,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (event.data.size > 0) audioChunks.push(event.data);
             };
 
-            // When the audio track itself ends (e.g., from the browser UI), stop our recording.
             audioStream.getTracks()[0].onended = () => stopRecording();
             
             mediaRecorder.start(1000); 
