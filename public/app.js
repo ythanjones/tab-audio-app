@@ -17,7 +17,6 @@ const firebaseConfig = {
     storageBucket: "tab-audio-app.firebasestorage.app",
     messagingSenderId: "715569829205",
     appId: "1:715569829205:web:216b98f170035f2fcf0bdc",
-    // UPDATED: Correct Measurement ID
     measurementId: "G-X9T1WHYM35"
 };
 
@@ -50,7 +49,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- State variables ---
+    // --- State variables & Constants ---
+    const AI_JUDGE_URL = 'https://idx-tab-audio-app-25992832-715569829205.europe-west2.run.app/grade-response';
     let currentUser = null;
     let db, auth, analytics;
     let mediaRecorder;
@@ -77,10 +77,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const modalContent = document.getElementById('modal-content');
     const modalTitle = document.getElementById('modal-title');
     const modalBody = document.getElementById('modal-body');
+    const modalFeedbackEl = document.getElementById('modal-feedback');
     const modalClose = document.getElementById('modal-close');
     const debugButton = document.getElementById('debugButton');
-
-    // ... The rest of the app.js file remains the same ...
     
     // =================================================================
     // INITIALIZATION & AUTHENTICATION
@@ -215,7 +214,7 @@ document.addEventListener('DOMContentLoaded', () => {
             logEvent('prompts_load_failure', { error: e.message });
         }
     }
-
+    
     // =================================================================
     // CORE FUNCTIONALITY: RECORDING & TRANSCRIPTION
     // =================================================================
@@ -240,9 +239,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             audioStream = new MediaStream(displayStream.getAudioTracks());
-
             displayStream.getVideoTracks().forEach(track => track.stop());
-
             audioChunks = [];
 
             mediaRecorder = new MediaRecorder(audioStream, { mimeType: 'audio/webm' });
@@ -251,12 +248,9 @@ document.addEventListener('DOMContentLoaded', () => {
             };
 
             audioStream.getTracks()[0].onended = () => stopRecording();
-            
             mediaRecorder.start(1000); 
-            
             logEvent('recording_start_success');
             updateUI();
-
         } catch (err) {
             console.error("Error starting recording:", err);
             logEvent('recording_start_failure', { reason: 'permission_denied_or_unknown', error: err.message });
@@ -268,12 +262,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!mediaRecorder || mediaRecorder.state === "inactive") return;
         
         logEvent('recording_stop_attempt', { audio_chunks_present: audioChunks.length > 0 });
-
         mediaRecorder.onstop = async () => {
             if (audioStream) audioStream.getTracks().forEach(track => track.stop());
-            
             updateUI();
-    
             if (audioChunks.length > 0) {
                 logEvent('transcription_initiated');
                 await transcribeAudio();
@@ -298,9 +289,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
             const result = await response.json();
-            
             if (!response.ok) throw new Error(result.error?.message || `API Error: ${response.status}`);
-
             if (result.candidates && result.candidates[0].content.parts[0].text) {
                 const transcript = result.candidates[0].content.parts[0].text;
                 outputEl.textContent = transcript;
@@ -317,7 +306,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // =================================================================
-    // AI ACTIONS & LIBRARY FUNCTIONS
+    // AI, FEEDBACK & LIBRARY FUNCTIONS
     // =================================================================
     
     function handleSummarize() {
@@ -338,26 +327,109 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const transcript = outputEl.textContent;
         const finalPrompt = promptTemplate.replace('{transcript}', transcript);
-
         const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
         const payload = { contents: [{ parts: [{ text: finalPrompt }] }] };
 
         try {
             const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
             const result = await response.json();
-
             if (!response.ok) throw new Error(result.error?.message || `API Error: ${response.status}`);
-
             if (result.candidates && result.candidates[0].content.parts[0].text) {
                 const generatedText = result.candidates[0].content.parts[0].text;
                 animateText(modalBody, generatedText);
                 logEvent('ai_action_success', { prompt_id: promptId });
+                showFeedbackUI(transcript, finalPrompt, generatedText, promptId);
             } else {
                 throw new Error('Invalid API response.');
             }
         } catch (err) {
             modalBody.innerHTML = `<p class="text-red-400">Could not generate ${taskTitle.toLowerCase()}. Error: ${err.message}</p>`;
             logEvent('ai_action_failure', { prompt_id: promptId, error: err.message });
+        }
+    }
+
+    function showFeedbackUI(transcript, prompt, response, promptId) {
+        modalFeedbackEl.classList.remove('hidden');
+        modalFeedbackEl.innerHTML = `
+            <p class="text-sm text-slate-400 mb-2">Was this response helpful?</p>
+            <div class="flex justify-center gap-4">
+                <button class="feedback-btn p-2 rounded-full hover:bg-slate-700" data-rating="positive">
+                    <i data-feather="thumbs-up" class="w-6 h-6 text-green-500"></i>
+                </button>
+                <button class="feedback-btn p-2 rounded-full hover:bg-slate-700" data-rating="negative">
+                    <i data-feather="thumbs-down" class="w-6 h-6 text-red-500"></i>
+                </button>
+            </div>
+            <div id="detailed-feedback-container" class="mt-3 hidden">
+                <textarea id="detailed-feedback-input" class="w-full text-sm bg-slate-900 border-slate-600 rounded-md p-2" placeholder="Optional: How could we improve?"></textarea>
+                <button id="submit-detailed-feedback" class="mt-2 text-xs bg-slate-600 text-white px-3 py-1.5 rounded-md hover:bg-slate-500">Submit Feedback</button>
+            </div>
+        `;
+        feather.replace();
+
+        const feedbackButtons = modalFeedbackEl.querySelectorAll('.feedback-btn');
+        const detailedFeedbackContainer = document.getElementById('detailed-feedback-container');
+
+        feedbackButtons.forEach(button => {
+            button.addEventListener('click', async (e) => {
+                const rating = e.currentTarget.dataset.rating;
+                if (rating === 'negative') {
+                    detailedFeedbackContainer.classList.remove('hidden');
+                    document.getElementById('submit-detailed-feedback').onclick = () => {
+                        const detailedText = document.getElementById('detailed-feedback-input').value;
+                        saveAndJudgeFeedback(transcript, prompt, response, promptId, rating, detailedText);
+                    };
+                } else {
+                    await saveAndJudgeFeedback(transcript, prompt, response, promptId, rating);
+                }
+            });
+        });
+    }
+
+    async function saveAndJudgeFeedback(transcript, prompt, response, promptId, rating, detailedFeedback = '') {
+        if (!currentUser) {
+            modalFeedbackEl.innerHTML = '<p class="text-sm text-yellow-400">Please log in to submit feedback.</p>';
+            return;
+        }
+        
+        modalFeedbackEl.innerHTML = '<p class="text-sm text-slate-400">Thank you for your feedback!</p>';
+        logEvent('feedback_submitted', { prompt_id: promptId, rating, has_detailed_text: !!detailedFeedback });
+
+        try {
+            const feedbackDocRef = await addDoc(collection(db, "users", currentUser.uid, "feedback"), {
+                userId: currentUser.uid,
+                promptId: promptId,
+                rating: rating,
+                detailedFeedback: detailedFeedback,
+                transcript: transcript,
+                prompt: prompt,
+                response: response,
+                createdAt: serverTimestamp()
+            });
+            const feedbackId = feedbackDocRef.id;
+            logEvent('feedback_saved_to_firestore', { feedbackId });
+
+            fetch(AI_JUDGE_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    feedbackId: feedbackId,
+                    transcript: transcript,
+                    prompt: prompt,
+                    response: response
+                })
+            })
+            .then(res => {
+                if (res.ok) { logEvent('ai_judge_request_successful', { feedbackId }); } 
+                else { logEvent('ai_judge_request_failed', { feedbackId, status: res.status }); }
+            })
+            .catch(err => {
+                console.error("Error calling AI Judge service:", err);
+                logEvent('ai_judge_request_error', { feedbackId, error: err.message });
+            });
+        } catch (err) {
+            console.error("Error saving feedback to Firestore:", err);
+            logEvent('feedback_save_failed', { error: err.message });
         }
     }
 
@@ -396,7 +468,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             
             const defaultTitle = transcriptText.substring(0, 50) + (transcriptText.length > 50 ? "..." : "");
-
             const saveModalHtml = `
                 <div class="space-y-4">
                     <div>
@@ -415,18 +486,10 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('saveConfirmButton').addEventListener('click', () => {
                 const title = document.getElementById('transcriptTitle').value;
                 const selectedCollection = document.querySelector('input[name="collection"]:checked');
-                
-                if (!title) {
-                    alert("Please enter a title.");
-                    return;
-                }
-                if (!selectedCollection) {
-                    alert("Please select a collection.");
-                    return;
-                }
+                if (!title) { alert("Please enter a title."); return; }
+                if (!selectedCollection) { alert("Please select a collection."); return; }
                 saveTranscriptToLibrary(title, selectedCollection.value);
             });
-
         } catch (error) {
             console.error("Error fetching collections:", error);
             logEvent('save_modal_failure', { reason: 'fetch_collections_error', error: error.message });
@@ -438,10 +501,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!currentUser) return;
         const transcriptContent = outputEl.textContent.trim();
         logEvent('save_transcript_attempt', { collection_id: collectionId, title_length: title.length });
-
-        const saveButton = document.getElementById('saveConfirmButton');
-        saveButton.disabled = true;
-        saveButton.textContent = 'Saving...';
+        const saveButtonEl = document.getElementById('saveConfirmButton');
+        saveButtonEl.disabled = true;
+        saveButtonEl.textContent = 'Saving...';
 
         try {
             await addDoc(collection(db, "users", currentUser.uid, "transcripts"), {
@@ -451,20 +513,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 createdAt: serverTimestamp()
             });
             logEvent('save_transcript_success');
-            saveButton.textContent = 'Saved!';
-            saveButton.classList.remove('btn-primary');
-            saveButton.classList.add('bg-green-600');
-            
+            saveButtonEl.textContent = 'Saved!';
+            saveButtonEl.classList.remove('btn-primary');
+            saveButtonEl.classList.add('bg-green-600');
             setTimeout(() => closeModal(), 1200);
-
         } catch (error) {
             console.error("Error saving transcript:", error);
             logEvent('save_transcript_failure', { error: error.message });
-            saveButton.disabled = false;
-            saveButton.textContent = 'Save Transcript';
+            saveButtonEl.disabled = false;
+            saveButtonEl.textContent = 'Save Transcript';
         }
     }
-
 
     // =================================================================
     // UI & HELPER FUNCTIONS
@@ -474,11 +533,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const isRecording = mediaRecorder && mediaRecorder.state === 'recording';
         const hasTranscript = outputEl.textContent && !outputEl.textContent.startsWith("Your transcript") && !outputEl.textContent.startsWith("Transcribing") && !outputEl.textContent.startsWith("No audio");
         const isLoggedIn = !!currentUser;
-
         recordButton.disabled = isRecording;
         recordButton.classList.toggle('recording', isRecording);
         recordButton.querySelector('span').textContent = isRecording ? 'Recording...' : 'Record';
-
         stopButton.disabled = !isRecording;
         summarizeButton.disabled = !hasTranscript || isRecording;
         aiDropdownButton.disabled = !hasTranscript || isRecording;
@@ -506,6 +563,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function openModal(title, content) {
         modalTitle.textContent = title;
         modalBody.innerHTML = content;
+        modalFeedbackEl.classList.add('hidden');
         modalBackdrop.classList.remove('hidden');
         setTimeout(() => {
             modalBackdrop.classList.add('opacity-100');
