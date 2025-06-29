@@ -1,5 +1,5 @@
 // =================================================================
-// LIBRARY PAGE SCRIPT (v2 - Robust & Log-Enabled)
+// LIBRARY PAGE SCRIPT (v2.1 - Bug Fix & Complete)
 // =================================================================
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js";
 import { 
@@ -186,7 +186,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const badgeClass = itemData.type === 'transcript' ? 'transcript-badge' : 'flashcard-badge';
         const badgeText = itemData.type === 'transcript' ? 'Transcript' : 'Flashcard Deck';
 
-        itemDiv.innerHTML = `...`; // Same as before
+        // *** FIX: Replaced the '...' placeholder with the actual HTML content ***
+        itemDiv.innerHTML = `
+            <div class="item-main">
+                <i data-feather="${iconType}" class="item-icon"></i>
+                <div class="item-details">
+                    <p class="item-title" title="${itemData.title}">${itemData.title}</p>
+                    <span class="item-badge ${badgeClass}">${badgeText}</span>
+                </div>
+            </div>
+            <div class="item-actions">
+                <button class="btn-icon btn-delete-item" title="Delete"><i data-feather="x"></i></button>
+            </div>
+        `;
 
         itemDiv.querySelector('.btn-delete-item').onclick = (e) => {
             e.stopPropagation();
@@ -215,7 +227,50 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // deleteItem and deleteActiveCollection functions remain the same...
+    // *** ADDED: The missing deleteItem and deleteActiveCollection functions ***
+    async function deleteItem(itemId, itemType) {
+        if (!currentUser || !confirm(`Are you sure you want to delete this ${itemType}?`)) return;
+        logEvent('item_delete_attempt', { itemId, itemType });
+        const collectionName = itemType === 'transcript' ? 'transcripts' : 'flashcardDecks';
+        try {
+            await deleteDoc(doc(db, "users", currentUser.uid, collectionName, itemId));
+            logEvent('item_delete_success', { itemId });
+            // Refresh the view
+            const currentCollectionName = currentCollectionTitleEl.textContent;
+            loadCollectionItems(activeCollectionId, currentCollectionName);
+        } catch (error) {
+            console.error("Error deleting item:", error);
+            logEvent('item_delete_failure', { itemId, error: error.message });
+            alert("Could not delete item.");
+        }
+    }
+
+    async function deleteActiveCollection() {
+        if (!currentUser || !activeCollectionId) return;
+        if (!confirm(`Are you sure you want to delete this entire collection and all its contents? This cannot be undone.`)) return;
+        logEvent('collection_delete_attempt', { collectionId: activeCollectionId });
+        try {
+            const batch = writeBatch(db);
+
+            const transcriptsRef = collection(db, "users", currentUser.uid, "transcripts");
+            const tq = query(transcriptsRef, where("collectionId", "==", activeCollectionId));
+            const tSnapshot = await getDocs(tq);
+            tSnapshot.forEach(doc => batch.delete(doc.ref));
+
+            const collectionDocRef = doc(db, "users", currentUser.uid, "collections", activeCollectionId);
+            batch.delete(collectionDocRef);
+
+            await batch.commit();
+            logEvent('collection_delete_success', { collectionId: activeCollectionId });
+
+            loadUserLibrary();
+
+        } catch (error) {
+            console.error("Error deleting collection:", error);
+            logEvent('collection_delete_failure', { collectionId: activeCollectionId, error: error.message });
+            alert("Could not delete collection.");
+        }
+    }
 
     // =================================================================
     // EVENT LISTENERS
