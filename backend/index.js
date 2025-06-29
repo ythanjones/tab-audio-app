@@ -1,10 +1,9 @@
 // File: backend/index.js
-// This file has been corrected to remove the unnecessary 'firebase-functions'
-// module, which was causing the deployment to fail.
+// This file has been corrected to use the modern @google/generative-ai SDK.
 
 const express = require('express');
 const admin = require('firebase-admin');
-const { GoogleAuth } = require("@google-ai/generativelanguage");
+const { GoogleGenerativeAI } = require("@google/generative-ai"); // Correct import
 const cors = require('cors');
 
 // Initialize Firebase Admin SDK
@@ -12,11 +11,21 @@ admin.initializeApp();
 const db = admin.firestore();
 
 const app = express();
-app.use(cors({ origin: true })); // Enable CORS for requests from our web app
-app.use(express.json()); // Enable the server to read JSON bodies
+app.use(cors({ origin: true }));
+app.use(express.json());
 
 // The API key must be securely stored as an environment variable in Cloud Run
 const API_KEY = process.env.GEMINI_API_KEY;
+
+// Initialize the Google AI client with the API key
+// This should only be done once.
+let genAI;
+if (API_KEY) {
+    genAI = new GoogleGenerativeAI(API_KEY);
+} else {
+    console.error("GEMINI_API_KEY environment variable not set. The /grade-response endpoint will not work.");
+}
+
 
 // This is our main API endpoint. The front-end will send requests here.
 app.post('/grade-response', async (req, res) => {
@@ -32,6 +41,12 @@ app.post('/grade-response', async (req, res) => {
     if (response.startsWith("ERROR:")) {
         console.log("Skipping AI grading for error feedback.");
         return res.status(200).send({ message: "Skipped grading for error response." });
+    }
+    
+    // Check if the API key was loaded correctly at startup
+    if (!genAI) {
+        console.error("AI client not initialized because API key is missing.");
+        return res.status(500).send({ error: 'Server is not configured with an API key.' });
     }
 
     console.log(`Grading response for feedback ID: ${feedbackId}`);
@@ -66,18 +81,13 @@ app.post('/grade-response', async (req, res) => {
     `;
 
     try {
-        if (!API_KEY) {
-            throw new Error("GEMINI_API_KEY environment variable not set.");
-        }
-      
-        const auth = new GoogleAuth().fromAPIKey(API_KEY);
-        const { GoogleAIFileManager, GenerativeModel } = require("@google/generative-ai");
-        const genAI = new GenerativeModel(API_KEY);
-      
+        // --- CORRECTED SDK USAGE ---
         const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
         const result = await model.generateContent(judgingPrompt);
-        const judgeResponseText = result.response.text();
-      
+        const judgeResponse = await result.response;
+        const judgeResponseText = judgeResponse.text();
+        // -------------------------
+    
         const jsonText = judgeResponseText.replace(/```json|```/g, "").trim();
         const gradingResult = JSON.parse(jsonText);
 
