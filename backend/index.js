@@ -1,9 +1,9 @@
 // File: backend/index.js
-// This file has been corrected to use the modern @google/generative-ai SDK.
+// This service acts as the "AI Judge" for quality assurance.
 
 const express = require('express');
 const admin = require('firebase-admin');
-const { GoogleGenerativeAI } = require("@google/generative-ai"); // Correct import
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 const cors = require('cors');
 
 // Initialize Firebase Admin SDK
@@ -18,7 +18,6 @@ app.use(express.json());
 const API_KEY = process.env.GEMINI_API_KEY;
 
 // Initialize the Google AI client with the API key
-// This should only be done once.
 let genAI;
 if (API_KEY) {
     genAI = new GoogleGenerativeAI(API_KEY);
@@ -43,7 +42,6 @@ app.post('/grade-response', async (req, res) => {
         return res.status(200).send({ message: "Skipped grading for error response." });
     }
     
-    // Check if the API key was loaded correctly at startup
     if (!genAI) {
         console.error("AI client not initialized because API key is missing.");
         return res.status(500).send({ error: 'Server is not configured with an API key.' });
@@ -81,29 +79,33 @@ app.post('/grade-response', async (req, res) => {
     `;
 
     try {
-        // --- CORRECTED SDK USAGE ---
         const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
         const result = await model.generateContent(judgingPrompt);
         const judgeResponse = await result.response;
         const judgeResponseText = judgeResponse.text();
-        // -------------------------
     
         const jsonText = judgeResponseText.replace(/```json|```/g, "").trim();
         const gradingResult = JSON.parse(jsonText);
 
         console.log("AI Judge response received:", gradingResult);
 
-        // Update the original feedback document with the AI Judge's scores
-        const feedbackRef = db.collection('feedback').doc(feedbackId);
-        await feedbackRef.set({ ai_grade: gradingResult }, { merge: true });
+        // This path is specific to where the app saves feedback.
+        // It needs to match the path used in app.js
+        const feedbackRef = db.collectionGroup('feedback').where('feedbackId', '==', feedbackId).limit(1);
+        const feedbackSnapshot = await feedbackRef.get();
+
+        if (feedbackSnapshot.empty) {
+            throw new Error(`No feedback document found with ID: ${feedbackId}`);
+        }
+        
+        const docToUpdate = feedbackSnapshot.docs[0].ref;
+        await docToUpdate.set({ ai_grade: gradingResult }, { merge: true });
 
         return res.status(200).send({ success: true, grade: gradingResult });
 
     } catch (error) {
       console.error("Error during AI grading:", error);
-      // Save the error to the document for later review
-      const feedbackRef = db.collection('feedback').doc(feedbackId);
-      await feedbackRef.set({ ai_grade_error: error.message }, { merge: true });
+      // We won't try to save the error to a document if we couldn't find it.
       return res.status(500).send({ error: error.message });
     }
 });
@@ -111,5 +113,5 @@ app.post('/grade-response', async (req, res) => {
 // The server listens for requests on the port provided by Cloud Run
 const port = process.env.PORT || 8080;
 app.listen(port, () => {
-    console.log(`Server listening on port ${port}`);
+    console.log(`AI Judge Server listening on port ${port}`);
 });
