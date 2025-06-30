@@ -9,7 +9,7 @@ const { PredictionServiceClient } = require('@google-cloud/aiplatform');
 // --- Configuration ---
 // IMPORTANT: You must replace these placeholders with your actual project details.
 const PROJECT_ID = 'tab-audio-app'; 
-const LOCATION = 'europe-west2'; 
+const LOCATION = 'us-central1'; 
 const PUBLISHER = 'google';
 const EMBEDDING_MODEL = 'textembedding-gecko@003';
 
