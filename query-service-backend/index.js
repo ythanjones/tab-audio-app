@@ -81,14 +81,18 @@ app.post('/chat', async (req, res) => {
  */
 async function generateEmbedding(text) {
     const endpoint = `projects/${PROJECT_ID}/locations/${LOCATION}/publishers/${PUBLISHER}/models/${EMBEDDING_MODEL}`;
-    const instance = { content: text };
+    // --- ADD THE TASK_TYPE PARAMETER ---
+    const instance = { 
+        content: text,
+        task_type: "RETRIEVAL_QUERY" 
+    };
     const request = { endpoint, instances: [instance] };
     
     const [response] = await predictionServiceClient.predict(request);
         
         // --- UPDATE THE RESPONSE PARSING ---
         // The new model uses 'embedding' (singular) instead of the complex 'embeddings' path.
-    return response.predictions[0].structValue.fields.embedding.listValue.values.map(v => v.numberValue);
+        return response.predictions[0].structValue.fields.embedding.listValue.values.map(v => v.numberValue);
     }
 
 

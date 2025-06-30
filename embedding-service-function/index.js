@@ -119,7 +119,10 @@ async function handleEmbedding(embeddingData) {
 
 async function generateEmbedding(text) {
     const endpoint = `projects/${PROJECT_ID}/locations/${LOCATION}/publishers/${PUBLISHER}/models/${EMBEDDING_MODEL}`;
-    const instance = { content: text };
+    const instance = { 
+        content: text,
+        task_type: "RETRIEVAL_DOCUMENT"
+    };
     const request = { endpoint, instances: [instance] };
     
     const [response] = await predictionServiceClient.predict(request);
