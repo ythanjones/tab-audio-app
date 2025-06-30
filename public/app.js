@@ -277,34 +277,56 @@ document.addEventListener('DOMContentLoaded', () => {
         mediaRecorder.stop();
     }
     
-    async function transcribeAudio() {
-        outputEl.textContent = "Transcribing, please wait...";
-        const apiKey = getApiKey();
-        if (!apiKey) return;
+    // In public/app.js
 
-        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-        const base64Audio = await blobToBase64(audioBlob);
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-        const payload = { contents: [{ parts: [{ text: "Transcribe the following audio recording accurately." }, { inline_data: { mime_type: "audio/webm", data: base64Audio } }] }] };
+async function transcribeAudio() {
+    outputEl.textContent = "Transcribing, please wait...";
+    const apiKey = getApiKey();
+    if (!apiKey) return;
 
-        try {
-            const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-            const result = await response.json();
-            if (!response.ok) throw new Error(result.error?.message || `API Error: ${response.status}`);
-            if (result.candidates && result.candidates[0].content.parts[0].text) {
-                const transcript = result.candidates[0].content.parts[0].text;
-                outputEl.textContent = transcript;
-                logEvent('transcription_success', { character_length: transcript.length });
-            } else {
-                throw new Error('Invalid API response structure.');
-            }
-        } catch (err) {
-            outputEl.textContent = `Transcription Failed: ${err.message}`;
-            logEvent('transcription_failure', { error: err.message });
-        } finally {
-            updateUI();
+    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+    const base64Audio = await blobToBase64(audioBlob);
+    
+    // Using a more direct prompt for transcription
+    const prompt = "Provide a verbatim transcript for the following audio.";
+    
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    const payload = { 
+        contents: [{ 
+            parts: [
+                { text: prompt }, 
+                { inline_data: { mime_type: "audio/webm", data: base64Audio } }
+            ] 
+        }] 
+    };
+
+    try {
+        const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        const result = await response.json();
+        
+        // --- MORE ROBUST ERROR CHECKING ---
+        if (!response.ok) {
+            // Log the full error from the API for better debugging
+            const errorMessage = result.error?.message || `API Error: ${response.status}`;
+            throw new Error(errorMessage);
         }
+
+        if (result.candidates && result.candidates.length > 0 && result.candidates[0].content?.parts[0]?.text) {
+            const transcript = result.candidates[0].content.parts[0].text;
+            outputEl.textContent = transcript;
+            logEvent('transcription_success', { character_length: transcript.length });
+        } else {
+            // If the structure is not what we expect, log the entire response to see why
+            console.error("Unexpected API response structure:", JSON.stringify(result, null, 2));
+            throw new Error('Invalid API response structure. See console for details.');
+        }
+    } catch (err) {
+        outputEl.textContent = `Transcription Failed: ${err.message}`;
+        logEvent('transcription_failure', { error: err.message });
+    } finally {
+        updateUI();
     }
+}
 
     // =================================================================
     // AGENT, AI & FEEDBACK FUNCTIONS
