@@ -12,7 +12,7 @@ const PORT = process.env.PORT || 8080;
 const PROJECT_ID = 'tab-audio-app'; 
 const LOCATION = 'europe-west2'; 
 const PUBLISHER = 'google';
-const EMBEDDING_MODEL = 'textembedding-gecko@003';
+const EMBEDDING_MODEL = 'gemini-embedding-001'; // Replaced retired 'textembedding-gecko@003'
 
 // You will need to provide these IDs from your Vertex AI setup
 const VECTOR_SEARCH_ENDPOINT_ID = '6958254938333904896'; 
@@ -83,10 +83,13 @@ async function generateEmbedding(text) {
     const endpoint = `projects/${PROJECT_ID}/locations/${LOCATION}/publishers/${PUBLISHER}/models/${EMBEDDING_MODEL}`;
     const instance = { content: text };
     const request = { endpoint, instances: [instance] };
-
+    
     const [response] = await predictionServiceClient.predict(request);
-    return response.predictions[0].structValue.fields.embeddings.structValue.fields.values.listValue.values.map(v => v.numberValue);
-}
+        
+        // --- UPDATE THE RESPONSE PARSING ---
+        // The new model uses 'embedding' (singular) instead of the complex 'embeddings' path.
+    return response.predictions[0].structValue.fields.embedding.listValue.values.map(v => v.numberValue);
+    }
 
 
 /**

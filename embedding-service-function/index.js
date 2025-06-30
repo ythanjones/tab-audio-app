@@ -9,9 +9,9 @@ const { PredictionServiceClient } = require('@google-cloud/aiplatform');
 // --- Configuration ---
 // IMPORTANT: You must replace these placeholders with your actual project details.
 const PROJECT_ID = 'tab-audio-app'; 
-const LOCATION = 'us-central1'; 
+const LOCATION = 'europe-west2'; 
 const PUBLISHER = 'google';
-const EMBEDDING_MODEL = 'textembedding-gecko@003';
+const EMBEDDING_MODEL = 'gemini-embedding-001';
 
 // You will get these values after creating the index and endpoint in the Google Cloud Console.
 const VECTOR_SEARCH_INDEX_ID = '7989579253001748480';
@@ -121,9 +121,9 @@ async function generateEmbedding(text) {
     const endpoint = `projects/${PROJECT_ID}/locations/${LOCATION}/publishers/${PUBLISHER}/models/${EMBEDDING_MODEL}`;
     const instance = { content: text };
     const request = { endpoint, instances: [instance] };
-
+    
     const [response] = await predictionServiceClient.predict(request);
-    return response.predictions[0].structValue.fields.embeddings.structValue.fields.values.listValue.values.map(v => v.numberValue);
+    return response.predictions[0].structValue.fields.embedding.listValue.values.map(v => v.numberValue);
 }
 
 async function upsertToVectorSearch(dataPoints) {
