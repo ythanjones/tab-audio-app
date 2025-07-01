@@ -96,13 +96,16 @@ async function generateEmbedding(text) {
     }
 
 
-/**
-/**
- // In query-service-backend/index.js
+// PASTE THIS ENTIRE FUNCTION INTO query-service-backend/index.js
 
+/**
+ * Finds relevant documents by querying the vector database.
+ */
 async function findRelevantDocuments(userId, question, collectionIds = []) {
     console.log(`Finding relevant documents for question: "${question}"`);
+
     const questionEmbedding = await generateEmbedding(question);
+
     const endpointPath = `projects/${PROJECT_ID}/locations/${LOCATION}/indexEndpoints/${VECTOR_SEARCH_ENDPOINT_ID}`;
     
     const filters = [{ namespace: 'userId', allow: [userId] }];
@@ -130,6 +133,7 @@ async function findRelevantDocuments(userId, question, collectionIds = []) {
         const docId = n.datapoint.datapointId;
         const typeRestriction = n.datapoint.restricts.find(r => r.namespace === 'documentType');
         const docType = typeRestriction ? typeRestriction.allow[0] : null;
+
         if (docType === 'transcript') {
             docIdsByType.transcripts.push(docId);
         } else if (docType === 'packet') {
@@ -140,6 +144,7 @@ async function findRelevantDocuments(userId, question, collectionIds = []) {
     console.log("Fetching documents from Firestore by type:", docIdsByType);
     const docPromises = [];
     const foundDocs = [];
+
     if (docIdsByType.transcripts.length > 0) {
         const transcriptsRef = db.collection(`users/${userId}/transcripts`);
         const transcriptQuery = transcriptsRef.where(admin.firestore.FieldPath.documentId(), 'in', docIdsByType.transcripts);
@@ -150,6 +155,7 @@ async function findRelevantDocuments(userId, question, collectionIds = []) {
         const packetQuery = packetsRef.where(admin.firestore.FieldPath.documentId(), 'in', docIdsByType.learning_packets);
         docPromises.push(packetQuery.get());
     }
+
     const querySnapshots = await Promise.all(docPromises);
     querySnapshots.forEach(snapshot => {
         snapshot.forEach(docSnap => {
@@ -158,6 +164,7 @@ async function findRelevantDocuments(userId, question, collectionIds = []) {
             }
         });
     });
+
     return foundDocs;
 }
 
