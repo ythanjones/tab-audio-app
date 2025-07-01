@@ -100,18 +100,9 @@ async function generateEmbedding(text) {
 /**
  // In query-service-backend/index.js
 
-/**
- * Finds relevant documents by querying the vector database.
- *
- * REFINED: Corrects the structure of the findNeighborsRequest object.
- * 'endpoint' is the correct top-level key, and 'deployedIndexId' belongs
- * inside the 'queries' array.
- */
 async function findRelevantDocuments(userId, question, collectionIds = []) {
     console.log(`Finding relevant documents for question: "${question}"`);
-
     const questionEmbedding = await generateEmbedding(question);
-
     const endpointPath = `projects/${PROJECT_ID}/locations/${LOCATION}/indexEndpoints/${VECTOR_SEARCH_ENDPOINT_ID}`;
     
     const filters = [{ namespace: 'userId', allow: [userId] }];
@@ -119,31 +110,26 @@ async function findRelevantDocuments(userId, question, collectionIds = []) {
         filters.push({ namespace: 'collectionId', allow: collectionIds });
     }
 
-    // This object is the corrected part.
     const findNeighborsRequest = {
-        endpoint: endpointPath, // Key is 'endpoint'
+        endpoint: endpointPath,
         queries: [{
             embedding: questionEmbedding,
             neighborCount: 5,
             restricts: filters,
-            deployedIndexId: DEPLOYED_INDEX_ID // This is now inside the query
+            deployedIndexId: DEPLOYED_INDEX_ID
         }]
     };
     
     const [findNeighborsResponse] = await predictionServiceClient.findNeighbors(findNeighborsRequest);
     const neighbors = findNeighborsResponse.nearestNeighbors[0]?.neighbors || [];
 
-    if (neighbors.length === 0) {
-        return [];
-    }
+    if (neighbors.length === 0) { return []; }
 
-    // The rest of this function is correct from our previous fixes.
     const docIdsByType = { transcripts: [], learning_packets: [] };
     neighbors.forEach(n => {
         const docId = n.datapoint.datapointId;
         const typeRestriction = n.datapoint.restricts.find(r => r.namespace === 'documentType');
         const docType = typeRestriction ? typeRestriction.allow[0] : null;
-
         if (docType === 'transcript') {
             docIdsByType.transcripts.push(docId);
         } else if (docType === 'packet') {
@@ -154,7 +140,6 @@ async function findRelevantDocuments(userId, question, collectionIds = []) {
     console.log("Fetching documents from Firestore by type:", docIdsByType);
     const docPromises = [];
     const foundDocs = [];
-
     if (docIdsByType.transcripts.length > 0) {
         const transcriptsRef = db.collection(`users/${userId}/transcripts`);
         const transcriptQuery = transcriptsRef.where(admin.firestore.FieldPath.documentId(), 'in', docIdsByType.transcripts);
@@ -165,7 +150,6 @@ async function findRelevantDocuments(userId, question, collectionIds = []) {
         const packetQuery = packetsRef.where(admin.firestore.FieldPath.documentId(), 'in', docIdsByType.learning_packets);
         docPromises.push(packetQuery.get());
     }
-
     const querySnapshots = await Promise.all(docPromises);
     querySnapshots.forEach(snapshot => {
         snapshot.forEach(docSnap => {
@@ -174,7 +158,6 @@ async function findRelevantDocuments(userId, question, collectionIds = []) {
             }
         });
     });
-
     return foundDocs;
 }
 
