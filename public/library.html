@@ -24,32 +24,33 @@
         <!-- Main Content Area for Items -->
         <main id="library-content">
             <div class="content-header">
-                 <h2 id="current-collection-title" class="collection-title"></h2>
-                 <div class="collection-actions">
-                     <button id="renameCollectionBtn" class="btn-icon" title="Rename Collection"><i data-feather="edit-2"></i></button>
-                     <button id="deleteCollectionBtn" class="btn-icon btn-danger" title="Delete Collection"><i data-feather="trash-2"></i></button>
-                 </div>
+                <h2 id="current-collection-title" class="collection-title"></h2>
+                
+                <div class="header-actions">
+                    <button id="viewToggleButton" class="btn btn-secondary">Chat with this Collection</button>
+                    
+                    <div class="collection-actions">
+                        <button id="renameCollectionBtn" class="btn-icon" title="Rename Collection"><i data-feather="edit-2"></i></button>
+                        <button id="deleteCollectionBtn" class="btn-icon btn-danger" title="Delete Collection"><i data-feather="trash-2"></i></button>
+                    </div>
+                </div>
             </div>
-           
-            <div id="itemsList" class="items-list-container">
-                <!-- Library items will be dynamically inserted here by library.js -->
+            
+            <div id="library-view-container">
+                <div id="itemsList" class="items-list-container">
+                    </div>
+                <div id="empty-state" class="empty-state-container hidden">
+                    </div>
             </div>
-
-            <!-- Empty State - Shown when a collection has no items -->
-             <div id="empty-state" class="empty-state-container hidden">
-                <!-- ... empty state content remains the same ... -->
-            </div>
-
-            <!-- CHAT INTERFACE - NEW -->
-            <div id="chat-container" class="chat-interface">
+        
+            <div id="chat-container" class="chat-interface hidden">
                 <div id="chat-messages" class="chat-messages">
-                    <!-- Chat messages will be appended here -->
                     <div class="chat-message bot-message">
                         <p>Ask me anything about the content in this collection, or select "All Collections" to chat with your entire library.</p>
                     </div>
                 </div>
                 <div class="chat-input-area">
-                    <textarea id="chat-input" placeholder="Ask a question about your library..."></textarea>
+                    <textarea id="chat-input" placeholder="Ask a question..."></textarea>
                     <button id="send-chat-btn" title="Send">
                         <i data-feather="send"></i>
                     </button>

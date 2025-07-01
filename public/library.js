@@ -50,7 +50,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const chatMessagesEl = document.getElementById('chat-messages');
     const chatInputEl = document.getElementById('chat-input');
     const sendChatBtn = document.getElementById('send-chat-btn');
-    
+    const libraryViewContainer = document.getElementById('library-view-container');
+    const chatContainer = document.getElementById('chat-container');
+    const viewToggleButton = document.getElementById('viewToggleButton');
     // --- Simple Logger for this page ---
     const logEvent = (name, params = {}) => {
         console.log(`LIBRARY EVENT: ${name}`, params);
@@ -288,7 +290,25 @@ document.addEventListener('DOMContentLoaded', () => {
             alert("Could not delete collection.");
         }
     }
-    
+
+// =================================================================
+// VIEW TOGGLING LOGIC
+// =================================================================
+
+    let isChatView = false; // Add this state variable near the top with the others
+
+    function setView(showChat) {
+        isChatView = showChat;
+        if (showChat) {
+        libraryViewContainer.classList.add('hidden');
+        chatContainer.classList.remove('hidden');
+        viewToggleButton.textContent = 'View Library';
+    }   else {
+        libraryViewContainer.classList.remove('hidden');
+        chatContainer.classList.add('hidden');
+        viewToggleButton.textContent = 'Chat with this Collection';
+     }
+    }
     // =================================================================
     // CHAT LOGIC
     // =================================================================
@@ -354,7 +374,9 @@ document.addEventListener('DOMContentLoaded', () => {
             handleChatSubmit();
         }
     });
-
+    viewToggleButton.addEventListener('click', () => {
+        setView(!isChatView); // Toggle the view
+    });
     newCollectionBtn.addEventListener('click', () => {
         logEvent('ui_action', { component: 'new_collection_button' });
         const name = prompt("Enter a name for your new collection:");
