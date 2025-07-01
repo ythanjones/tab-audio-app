@@ -96,7 +96,8 @@ async function generateEmbedding(text) {
     }
 
 
-// PASTE THIS ENTIRE FUNCTION INTO query-service-backend/index.js
+// In query-service-backend/index.js
+// PASTE THIS ENTIRE FUNCTION INTO THE HELPER FUNCTIONS SECTION
 
 /**
  * Finds relevant documents by querying the vector database.
@@ -107,7 +108,7 @@ async function findRelevantDocuments(userId, question, collectionIds = []) {
     const questionEmbedding = await generateEmbedding(question);
 
     const endpointPath = `projects/${PROJECT_ID}/locations/${LOCATION}/indexEndpoints/${VECTOR_SEARCH_ENDPOINT_ID}`;
-    
+
     const filters = [{ namespace: 'userId', allow: [userId] }];
     if (collectionIds && collectionIds.length > 0) {
         filters.push({ namespace: 'collectionId', allow: collectionIds });
@@ -122,7 +123,7 @@ async function findRelevantDocuments(userId, question, collectionIds = []) {
             deployedIndexId: DEPLOYED_INDEX_ID
         }]
     };
-    
+
     const [findNeighborsResponse] = await predictionServiceClient.findNeighbors(findNeighborsRequest);
     const neighbors = findNeighborsResponse.nearestNeighbors[0]?.neighbors || [];
 
