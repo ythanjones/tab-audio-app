@@ -1,0 +1,43 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Allows any user (logged in or not) to read the public prompts.
+    // This will fix the "Prompt not found" error.
+    match /prompts/{promptId} {
+      allow read: if true;
+    }
+
+    // Allows any authenticated user to create a new feedback document.
+    match /feedback/{feedbackId} {
+      allow create: if request.auth.uid != null;
+    }
+
+    // This section secures all data specific to a user.
+    match /users/{userId} {
+      // Allow a user to read/write their own document (e.g., for saving API key).
+      allow read, write: if request.auth.uid == userId;
+
+      // Allow a user to manage their library collections (create, rename, delete).
+      match /collections/{collectionId} {
+        allow read, write, delete: if request.auth.uid == userId;
+      }
+      
+      // Allow a user to manage their saved transcripts.
+      match /transcripts/{transcriptId} {
+        allow read, write, delete: if request.auth.uid == userId;
+      }
+      
+      // Allow a user to manage their saved learning packets.
+      match /learning_packets/{packetId} {
+        allow read, write, delete: if request.auth.uid == userId;
+      }
+      
+      // Allow a user to manage their own flashcard decks.
+      match /decks/{deckId} {
+        allow read, write, delete: if request.auth.uid == userId;
+      }
+    }
+  }
+}

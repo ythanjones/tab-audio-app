@@ -18,7 +18,7 @@ const VECTOR_SEARCH_INDEX_ID = '7989579253001748480';
 const VECTOR_SEARCH_ENDPOINT_ID = '6958254938333904896';
 // --------------------
 
-admin.initializeApp();
+admin.initializeApp({ projectId: 'tab-audio-app' });
 
 // Initialize the Vertex AI Client
 const clientOptions = { apiEndpoint: `${LOCATION}-aiplatform.googleapis.com` };
