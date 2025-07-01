@@ -114,21 +114,19 @@ async function findRelevantDocuments(userId, question, collectionIds = []) {
 
     const endpointPath = `projects/${PROJECT_ID}/locations/${LOCATION}/indexEndpoints/${VECTOR_SEARCH_ENDPOINT_ID}`;
     
-    // Construct the filters for the vector search query
     const filters = [{ namespace: 'userId', allow: [userId] }];
     if (collectionIds && collectionIds.length > 0) {
         filters.push({ namespace: 'collectionId', allow: collectionIds });
     }
 
-    // --- CORRECTED REQUEST STRUCTURE ---
+    // This object is the corrected part.
     const findNeighborsRequest = {
-        endpoint: endpointPath, // The key is 'endpoint', not 'indexEndpoint'
+        endpoint: endpointPath, // Key is 'endpoint'
         queries: [{
             embedding: questionEmbedding,
-            neighborCount: 5, 
+            neighborCount: 5,
             restricts: filters,
-            // deployedIndexId must be inside the query object
-            deployedIndexId: DEPLOYED_INDEX_ID 
+            deployedIndexId: DEPLOYED_INDEX_ID // This is now inside the query
         }]
     };
     
@@ -139,11 +137,8 @@ async function findRelevantDocuments(userId, question, collectionIds = []) {
         return [];
     }
 
-    // This part of the code (fetching from Firestore) is already correct from our previous refinement.
-    const docIdsByType = {
-        transcripts: [],
-        learning_packets: []
-    };
+    // The rest of this function is correct from our previous fixes.
+    const docIdsByType = { transcripts: [], learning_packets: [] };
     neighbors.forEach(n => {
         const docId = n.datapoint.datapointId;
         const typeRestriction = n.datapoint.restricts.find(r => r.namespace === 'documentType');

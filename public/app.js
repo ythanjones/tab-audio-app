@@ -279,52 +279,57 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // In public/app.js
 
-async function transcribeAudio() {
-    outputEl.textContent = "Transcribing, please wait...";
-    const apiKey = getApiKey();
-    if (!apiKey) return;
-
-    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-    const base64Audio = await blobToBase64(audioBlob);
+    async function transcribeAudio() {
+        outputEl.textContent = "Transcribing, please wait...";
+        const apiKey = getApiKey();
+        if (!apiKey) return;
     
-    // Using a more direct prompt for transcription
-    const prompt = "Provide a verbatim transcript for the following audio.";
-    
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-    const payload = { 
-        contents: [{ 
-            parts: [
-                { text: prompt }, 
-                { inline_data: { mime_type: "audio/webm", data: base64Audio } }
-            ] 
-        }] 
-    };
-
-    try {
-        const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-        const result = await response.json();
+        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        const base64Audio = await blobToBase64(audioBlob);
         
-        // --- MORE ROBUST ERROR CHECKING ---
-        if (!response.ok) {
-            // Log the full error from the API for better debugging
-            const errorMessage = result.error?.message || `API Error: ${response.status}`;
-            throw new Error(errorMessage);
-        }
-
-        if (result.candidates && result.candidates.length > 0 && result.candidates[0].content?.parts[0]?.text) {
-            const transcript = result.candidates[0].content.parts[0].text;
-            outputEl.textContent = transcript;
-            logEvent('transcription_success', { character_length: transcript.length });
-        } else {
-            // If the structure is not what we expect, log the entire response to see why
-            console.error("Unexpected API response structure:", JSON.stringify(result, null, 2));
-            throw new Error('Invalid API response structure. See console for details.');
-        }
-    } catch (err) {
-        outputEl.textContent = `Transcription Failed: ${err.message}`;
-        logEvent('transcription_failure', { error: err.message });
-    } finally {
-        updateUI();
+        // Using a more direct and robust prompt for transcription
+        const prompt = "Provide a verbatim transcript for the following audio. If the audio is silent or contains no discernible speech, return an empty string.";
+        
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+        const payload = { 
+            contents: [{ 
+                parts: [
+                    { text: prompt }, 
+                    { inline_data: { mime_type: "audio/webm", data: base64Audio } }
+                ] 
+            }] 
+        };
+    
+        try {
+            const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+            const result = await response.json();
+            
+            // More robust check for API errors
+            if (!response.ok) {
+                const errorMessage = result.error?.message || `API Error: ${response.status}`;
+                throw new Error(errorMessage);
+            }
+    
+            const transcript = result.candidates?.[0]?.content?.parts?.[0]?.text;
+    
+            // Future-proofing: Check if the API returned a transcript or not
+            if (typeof transcript === 'string' && transcript.trim().length > 0) {
+                outputEl.textContent = transcript;
+                logEvent('transcription_success', { character_length: transcript.length });
+            } else if (typeof transcript === 'string') {
+                outputEl.textContent = "No speech was detected in the audio.";
+                logEvent('transcription_success', { character_length: 0, reason: 'no_speech_detected'});
+            }
+            else {
+                // If the structure is not what we expect, log the entire response
+                console.error("Unexpected API response structure:", JSON.stringify(result, null, 2));
+                throw new Error('Invalid API response structure. See console for details.');
+            }
+        } catch (err) {
+            outputEl.textContent = `Transcription Failed: ${err.message}`;
+            logEvent('transcription_failure', { error: err.message });
+        } finally {
+            updateUI();
     }
 }
 
@@ -436,29 +441,55 @@ async function transcribeAudio() {
         await saveAndJudgeFeedback(transcript, prompt, response, promptId, rating, detailedFeedback);
     }
     
-    async function generateTextWithGemini(promptTemplate, taskTitle, promptId) {
+    async function generateTextWithGemini(promptId, taskTitle) {
         const apiKey = getApiKey();
-        if (!apiKey) return;
+        if (!apiKey) {
+            openModal("API Key Required", "Please set your Gemini API key to use the AI tools.");
+            return;
+        }
+        
+        const transcript = outputEl.textContent.trim();
+        // Future-proofing: Prevent running on empty or placeholder text
+        if (!transcript || transcript.startsWith("No speech") || transcript.startsWith("Your transcript")) {
+            openModal("Error", "There is no transcript to process.");
+            return;
+        }
+    
+        const promptTemplate = promptsCache.get(promptId);
+    
+        // This block provides a much better error message if the prompt ID is wrong
+        if (!promptTemplate) {
+            const availablePrompts = Array.from(promptsCache.keys()).join(', ');
+            const errorMessage = `Prompt with ID '${promptId}' was not found. Available prompts are: [${availablePrompts}]`;
+            console.error(errorMessage);
+            openModal("Error", errorMessage);
+            return;
+        }
         
         openModal(taskTitle, '<div class="flex justify-center items-center"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div></div>');
         
-        const transcript = outputEl.textContent;
         const finalPrompt = promptTemplate.replace('{transcript}', transcript);
         const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
         const payload = { contents: [{ parts: [{ text: finalPrompt }] }] };
-
+    
         try {
             const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
             const result = await response.json();
-            if (!response.ok) throw new Error(result.error?.message || `API Error: ${response.status}`);
+            
+            if (!response.ok) {
+                const errorMessage = result.error?.message || `API Error: ${response.status}`;
+                throw new Error(errorMessage);
+            }
+            
             if (result.candidates && result.candidates[0].content.parts[0].text) {
                 const generatedText = result.candidates[0].content.parts[0].text;
                 animateText(modalBody, generatedText);
                 logEvent('ai_action_success', { prompt_id: promptId });
-                // We show feedback for individual tools too
                 showFeedbackUI(transcript, finalPrompt, generatedText, promptId);
             } else {
-                throw new Error('Invalid API response.');
+                 // If the structure is not what we expect, log the entire response
+                console.error("Unexpected API response structure:", JSON.stringify(result, null, 2));
+                throw new Error('Invalid API response structure. See console for details.');
             }
         } catch (err) {
             modalBody.innerHTML = `<p class="text-red-400">Could not generate ${taskTitle.toLowerCase()}. Error: ${err.message}</p>`;
@@ -759,13 +790,10 @@ async function transcribeAudio() {
         button.addEventListener('click', () => {
             const promptId = button.dataset.promptId;
             const taskTitle = button.textContent.replace(' Only','');
-            const promptTemplate = promptsCache.get(promptId);
-
-            if (!promptTemplate) {
-                openModal("Error", `Prompt '${promptId}' not found.`);
-                return;
-            }
-            generateTextWithGemini(promptTemplate, taskTitle, promptId);
+            
+            // This now correctly calls the updated function
+            generateTextWithGemini(promptId, taskTitle); 
+            
             aiDropdownMenu.classList.add('hidden');
             aiDropdownButton.setAttribute('aria-expanded', 'false');
         });
