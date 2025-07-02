@@ -83,6 +83,24 @@ async function flashcardsTool(transcript) {
         console.error("Error in flashcardsTool (parsing JSON):", error);
         return [{ front: "Error", back: "Could not generate flashcards." }]; // Return a safe object on error
     }
+    /**
+ * Tool to extract actionable items from a transcript.
+ * @param {string} transcript The full text of the transcript.
+ * @returns {Promise<string[]>} An array of action item strings.
+ */
+async function actionItemsTool(transcript) {
+    console.log("Executing actionItemsTool...");
+    const prompt = `Analyze the following transcript and list any specific, actionable tasks, suggestions, or next steps mentioned. Return your response ONLY as a raw JSON array of strings: ["Action item 1", "Action item 2", ...] --- ${transcript}`;
+    try {
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const text = response.text().replace(/```json|```/g, "").trim();
+        return JSON.parse(text);
+    } catch (error) {
+        console.error("Error in actionItemsTool (parsing JSON):", error);
+        return ["Error: Could not generate action items."]; // Return a safe array on error
+    }
+}
 }
 
 
@@ -111,10 +129,11 @@ app.post('/generate-packet', async (req, res) => {
         console.log("Agent is orchestrating tools in parallel...");
         
         // Run all tools at the same time for maximum efficiency
-        const [summary, keyConcepts, flashcards] = await Promise.all([
+        const [summary, keyConcepts, flashcards, actionItems] = await Promise.all([
             summarizeTool(transcript),
             keyConceptsTool(transcript),
-            flashcardsTool(transcript)
+            flashcardsTool(transcript),
+            actionItemsTool(transcript) // Add the new tool here
         ]);
 
         console.log("All tools completed successfully.");
@@ -123,7 +142,8 @@ app.post('/generate-packet', async (req, res) => {
         const learningPacket = {
             summary,
             keyConcepts,
-            flashcards
+            flashcards,
+            actionItems
         };
 
         res.status(200).json(learningPacket);

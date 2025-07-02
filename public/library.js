@@ -53,10 +53,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const libraryViewContainer = document.getElementById('library-view-container');
     const chatContainer = document.getElementById('chat-container');
     const viewToggleButton = document.getElementById('viewToggleButton');
-    // --- Simple Logger for this page ---
+    const debugButton = document.getElementById('debugButton');
     const logEvent = (name, params = {}) => {
         console.log(`LIBRARY EVENT: ${name}`, params);
-    };
+    }
 
     // --- INITIALIZATION ---
     try {
@@ -389,5 +389,10 @@ document.addEventListener('DOMContentLoaded', () => {
         logEvent('ui_action', { component: 'delete_collection_button' });
         deleteActiveCollection();
     });
+    debugButton.addEventListener('click', openDebugModal);
+    function openDebugModal() {
+        // This function can be expanded later if needed
+        alert("Debug modal for library page is not fully implemented yet.");
+    }
 
 });
