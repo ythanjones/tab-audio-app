@@ -4,8 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>My Library - AI Learning Assistant</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
     <!-- Main Stylesheet -->
-    <link rel="stylesheet" href="styles.css?v=2.5"> <!-- Version updated -->
+    <link rel="stylesheet" href="styles.css?v=2.6">
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -18,7 +20,22 @@
     <div id="library-container">
         <!-- Sidebar for Collections -->
         <aside id="library-sidebar">
+            <div class="sidebar-header">
+                <h1 class="main-title">My Library</h1>
+            </div>
+            
+            <div class="sidebar-content">
+                <!-- Collections List -->
+                <ul id="collectionsList" class="collections-list">
+                    <!-- Collections will be loaded here dynamically -->
+                </ul>
+            </div>
+            
             <div class="sidebar-footer">
+                <button id="newCollectionBtn" class="btn btn-secondary w-full mb-2">
+                    <i data-feather="plus"></i>
+                    <span>New Collection</span>
+                </button>
                 <button id="debugButton" class="btn-icon" title="Open Debug Log">
                     <i data-feather="tool"></i>
                 </button>
@@ -26,7 +43,7 @@
         </aside>
 
         <!-- Main Content Area for Items -->
-        <main id="library-content">
+        <main id="library-content" class="hidden">
             <div class="content-header">
                 <h2 id="current-collection-title" class="collection-title"></h2>
                 
@@ -42,9 +59,13 @@
             
             <div id="library-view-container">
                 <div id="itemsList" class="items-list-container">
-                    </div>
+                    <!-- Items will be loaded here dynamically -->
+                </div>
                 <div id="empty-state" class="empty-state-container hidden">
-                    </div>
+                    <i data-feather="inbox" class="empty-state-icon"></i>
+                    <h3 class="empty-state-title">No items yet</h3>
+                    <p class="empty-state-text">Save transcripts or learning packets from the main app to see them here.</p>
+                </div>
             </div>
         
             <div id="chat-container" class="chat-interface hidden">

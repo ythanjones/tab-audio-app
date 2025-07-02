@@ -1,3 +1,4 @@
+import LoggingService from './loggingService.js';
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js";
 import { getAnalytics, logEvent as fbLogEvent } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-analytics.js";
 import { getFirestore, collection, addDoc, doc, setDoc, getDoc, serverTimestamp, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-firestore.js";
@@ -25,28 +26,18 @@ document.addEventListener('DOMContentLoaded', () => {
     // =================================================================
     // DIAGNOSTICS & LOGGING SYSTEM
     // =================================================================
-    const sessionLog = [];
     const originalConsoleLog = console.log;
     const originalConsoleError = console.error;
 
     console.log = function(...args) {
-        sessionLog.push({ timestamp: new Date().toISOString(), level: 'LOG', message: args.join(' ') });
+        LoggingService.logEvent('console_log', { message: args.join(' ') });
         originalConsoleLog.apply(console, args);
     };
 
     console.error = function(...args) {
-        sessionLog.push({ timestamp: new Date().toISOString(), level: 'ERROR', message: args.join(' ') });
+        LoggingService.logEvent('console_error', { message: args.join(' ') });
         originalConsoleError.apply(console, args);
     };
-    
-    function logEvent(name, params = {}) {
-        const eventData = { timestamp: new Date().toISOString(), level: 'EVENT', name, params };
-        sessionLog.push(eventData);
-        originalConsoleLog(`EVENT: ${name}`, params);
-        if (typeof analytics !== 'undefined' && analytics) {
-            fbLogEvent(analytics, name, params);
-        }
-    }
 
     // --- State variables & Constants ---
     const AI_JUDGE_URL = 'https://idx-tab-audio-app-25992832-715569829205.europe-west2.run.app/grade-response';
@@ -94,21 +85,31 @@ document.addEventListener('DOMContentLoaded', () => {
         analytics = getAnalytics(app);
         db = getFirestore(app);
         firebaseInitialized = true;
-        logEvent('app_initialized');
+        LoggingService.init();
+        LoggingService.logEvent('app_initialized');
 
         loadPrompts();
 
         onAuthStateChanged(auth, async (user) => {
             currentUser = user;
             if (user) {
-                logEvent('auth_state_changed', { status: 'logged_in', userId: user.uid });
+                LoggingService.logEvent('auth_state_changed', { status: 'logged_in', userId: user.uid });
                 userInfo.classList.remove('hidden');
                 loginContainer.innerHTML = ''; 
                 loginContainer.classList.add('hidden');
                 userEmailEl.textContent = user.email;
+                
+                // Add "Go to Library" button
+                userInfo.insertAdjacentHTML('beforeend', `
+                    <button id="goToLibraryBtn" class="btn btn-secondary ml-4">My Library</button>
+                `);
+                document.getElementById('goToLibraryBtn').addEventListener('click', () => {
+                    window.location.href = 'library.html';
+                });
+                
                 await fetchUserApiKey();
             } else {
-                logEvent('auth_state_changed', { status: 'logged_out' });
+                LoggingService.logEvent('auth_state_changed', { status: 'logged_out' });
                 userInfo.classList.add('hidden');
                 loginContainer.classList.remove('hidden');
                 renderLoginButton();
@@ -128,7 +129,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function openLoginModal() {
-        logEvent('ui_action', { component: 'login_modal', action: 'open' });
+        LoggingService.logEvent('ui_action', { component: 'login_modal', action: 'open' });
         const loginHtml = `
             <div class="space-y-4">
                 <div>
@@ -153,66 +154,66 @@ document.addEventListener('DOMContentLoaded', () => {
             alert("Please enter both email and password.");
             return;
         }
-        logEvent('auth_attempt', { email: email });
+        LoggingService.logEvent('auth_attempt', { email: email });
         try {
             await signInWithEmailAndPassword(auth, email, password);
-            logEvent('auth_success', { type: 'login' });
+            LoggingService.logEvent('auth_success', { type: 'login' });
             closeModal();
         } catch (error) {
             if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
                 try {
                     await createUserWithEmailAndPassword(auth, email, password);
-                    logEvent('auth_success', { type: 'signup' });
+                    LoggingService.logEvent('auth_success', { type: 'signup' });
                     closeModal();
                 } catch (signUpError) {
-                    logEvent('auth_failure', { type: 'signup', error: signUpError.message });
+                    LoggingService.logEvent('auth_failure', { type: 'signup', error: signUpError.message });
                     alert(`Signup failed: ${signUpError.message}`);
                 }
             } else {
-                logEvent('auth_failure', { type: 'login', error: error.message });
+                LoggingService.logEvent('auth_failure', { type: 'login', error: error.message });
                 alert(`Login failed: ${error.message}`);
             }
         }
     }
 
     function handleLogout() {
-        logEvent('logout_attempt');
+        LoggingService.logEvent('logout_attempt');
         signOut(auth).catch(error => {
-            logEvent('logout_failure', { error: error.message });
+            LoggingService.logEvent('logout_failure', { error: error.message });
             openModal("Error", `Logout failed: ${error.message}`);
         });
     }
     
     async function fetchUserApiKey() {
         if (!currentUser) return;
-        logEvent('api_key_fetch_attempt');
+        LoggingService.logEvent('api_key_fetch_attempt');
         try {
             const userDocRef = doc(db, "users", currentUser.uid);
             const docSnap = await getDoc(userDocRef);
             if (docSnap.exists() && docSnap.data().geminiApiKey) {
                 activeApiKey = docSnap.data().geminiApiKey;
-                logEvent('api_key_fetch_success', { found: true });
+                LoggingService.logEvent('api_key_fetch_success', { found: true });
             } else {
                 activeApiKey = null;
-                logEvent('api_key_fetch_success', { found: false });
+                LoggingService.logEvent('api_key_fetch_success', { found: false });
             }
         } catch (e) {
             console.error("Error fetching API key: ", e);
             activeApiKey = null;
-            logEvent('api_key_fetch_failure', { error: e.message });
+            LoggingService.logEvent('api_key_fetch_failure', { error: e.message });
         }
     }
 
     async function loadPrompts() {
         if (!firebaseInitialized) return;
-        logEvent('prompts_load_attempt');
+        LoggingService.logEvent('prompts_load_attempt');
         try {
             const querySnapshot = await getDocs(collection(db, "prompts"));
             querySnapshot.forEach((doc) => promptsCache.set(doc.id, doc.data().text));
-            logEvent('prompts_load_success', { count: promptsCache.size });
+            LoggingService.logEvent('prompts_load_success', { count: promptsCache.size });
         } catch(e) {
             console.error("Could not load prompts from Firestore:", e);
-            logEvent('prompts_load_failure', { error: e.message });
+            LoggingService.logEvent('prompts_load_failure', { error: e.message });
         }
     }
     
@@ -221,9 +222,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // =================================================================
         
     async function startRecording() {
-        logEvent('recording_start_attempt');
+        LoggingService.logEvent('recording_start_attempt');
         if (!getApiKey()) {
-            logEvent('recording_start_failure', { reason: 'api_key_missing' });
+            LoggingService.logEvent('recording_start_failure', { reason: 'api_key_missing' });
             openModal("API Key Required", "Please log in and set your Gemini API key to use this application.");
             return;
         }
@@ -234,7 +235,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const displayStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
             if (displayStream.getAudioTracks().length === 0) {
                 displayStream.getTracks().forEach(track => track.stop());
-                logEvent('recording_start_failure', { reason: 'no_audio_track' });
+                LoggingService.logEvent('recording_start_failure', { reason: 'no_audio_track' });
                 openModal("Audio Error", "No audio track found. Please ensure you share screen or tab audio.");
                 return;
             }
@@ -250,11 +251,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             audioStream.getTracks()[0].onended = () => stopRecording();
             mediaRecorder.start(1000); 
-            logEvent('recording_start_success');
+            LoggingService.logEvent('recording_start_success');
             updateUI();
         } catch (err) {
             console.error("Error starting recording:", err);
-            logEvent('recording_start_failure', { reason: 'permission_denied_or_unknown', error: err.message });
+            LoggingService.logEvent('recording_start_failure', { reason: 'permission_denied_or_unknown', error: err.message });
             openModal("Recording Error", `Failed to start recording. Please grant permission. Error: ${err.message}`);
         }
     }
@@ -262,23 +263,21 @@ document.addEventListener('DOMContentLoaded', () => {
     async function stopRecording() {
         if (!mediaRecorder || mediaRecorder.state === "inactive") return;
         
-        logEvent('recording_stop_attempt', { audio_chunks_present: audioChunks.length > 0 });
+        LoggingService.logEvent('recording_stop_attempt', { audio_chunks_present: audioChunks.length > 0 });
         mediaRecorder.onstop = async () => {
             if (audioStream) audioStream.getTracks().forEach(track => track.stop());
             updateUI();
             if (audioChunks.length > 0) {
-                logEvent('transcription_initiated');
+                LoggingService.logEvent('transcription_initiated');
                 await transcribeAudio();
             } else {
-                logEvent('recording_stop_complete', { transcribed: false, reason: 'no_audio_chunks' });
+                LoggingService.logEvent('recording_stop_complete', { transcribed: false, reason: 'no_audio_chunks' });
                 outputEl.textContent = "No audio was captured. Please try recording again.";
             }
         };
         mediaRecorder.stop();
     }
     
-    // In public/app.js
-
     async function transcribeAudio() {
         outputEl.textContent = "Transcribing, please wait...";
         const apiKey = getApiKey();
@@ -315,10 +314,10 @@ document.addEventListener('DOMContentLoaded', () => {
             // Future-proofing: Check if the API returned a transcript or not
             if (typeof transcript === 'string' && transcript.trim().length > 0) {
                 outputEl.textContent = transcript;
-                logEvent('transcription_success', { character_length: transcript.length });
+                LoggingService.logEvent('transcription_success', { character_length: transcript.length });
             } else if (typeof transcript === 'string') {
                 outputEl.textContent = "No speech was detected in the audio.";
-                logEvent('transcription_success', { character_length: 0, reason: 'no_speech_detected'});
+                LoggingService.logEvent('transcription_success', { character_length: 0, reason: 'no_speech_detected'});
             }
             else {
                 // If the structure is not what we expect, log the entire response
@@ -327,11 +326,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (err) {
             outputEl.textContent = `Transcription Failed: ${err.message}`;
-            logEvent('transcription_failure', { error: err.message });
+            LoggingService.logEvent('transcription_failure', { error: err.message });
         } finally {
             updateUI();
+        }
     }
-}
 
     // =================================================================
     // AGENT, AI & FEEDBACK FUNCTIONS
@@ -341,7 +340,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const apiKey = getApiKey();
         if (!apiKey) return;
 
-        logEvent('agent_action_initiated', { action: 'generate_learning_packet' });
+        LoggingService.logEvent('agent_action_initiated', { action: 'generate_learning_packet' });
         openModal("Generating Learning Packet", '<div class="flex justify-center items-center"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div><p class="ml-4">The agent is working...</p></div>');
         
         const transcript = outputEl.textContent;
@@ -359,12 +358,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const learningPacket = await response.json();
-            logEvent('agent_action_success');
+            LoggingService.logEvent('agent_action_success');
             displayLearningPacket(learningPacket, transcript);
 
         } catch (error) {
             console.error("Error calling agent service:", error);
-            logEvent('agent_action_failure', { error: error.message });
+            LoggingService.logEvent('agent_action_failure', { error: error.message });
             modalBody.innerHTML = `<p class="text-red-400">Could not generate Learning Packet. Error: ${error.message}</p>`;
         }
     }
@@ -484,7 +483,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (result.candidates && result.candidates[0].content.parts[0].text) {
                 const generatedText = result.candidates[0].content.parts[0].text;
                 animateText(modalBody, generatedText);
-                logEvent('ai_action_success', { prompt_id: promptId });
+                LoggingService.logEvent('ai_action_success', { prompt_id: promptId });
                 showFeedbackUI(transcript, finalPrompt, generatedText, promptId);
             } else {
                  // If the structure is not what we expect, log the entire response
@@ -493,7 +492,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (err) {
             modalBody.innerHTML = `<p class="text-red-400">Could not generate ${taskTitle.toLowerCase()}. Error: ${err.message}</p>`;
-            logEvent('ai_action_failure', { prompt_id: promptId, error: err.message });
+            LoggingService.logEvent('ai_action_failure', { prompt_id: promptId, error: err.message });
         }
     }
 
@@ -542,7 +541,7 @@ document.addEventListener('DOMContentLoaded', () => {
             modalFeedbackEl.innerHTML = '<p class="text-sm text-slate-400">Thank you for your feedback!</p>';
         }
         
-        logEvent('feedback_submitted', { prompt_id: promptId, rating, has_detailed_text: !!detailedFeedback });
+        LoggingService.logEvent('feedback_submitted', { prompt_id: promptId, rating, has_detailed_text: !!detailedFeedback });
 
         try {
             const feedbackDocRef = await addDoc(collection(db, "users", currentUser.uid, "feedback"), {
@@ -556,7 +555,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 createdAt: serverTimestamp()
             });
             const feedbackId = feedbackDocRef.id;
-            logEvent('feedback_saved_to_firestore', { feedbackId });
+            LoggingService.logEvent('feedback_saved_to_firestore', { feedbackId });
 
             fetch(AI_JUDGE_URL, {
                 method: 'POST',
@@ -564,16 +563,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({ feedbackId, transcript, prompt, response })
             })
             .then(res => {
-                if (res.ok) { logEvent('ai_judge_request_successful', { feedbackId }); } 
-                else { logEvent('ai_judge_request_failed', { feedbackId, status: res.status }); }
+                if (res.ok) { LoggingService.logEvent('ai_judge_request_successful', { feedbackId }); } 
+                else { LoggingService.logEvent('ai_judge_request_failed', { feedbackId, status: res.status }); }
             })
             .catch(err => {
                 console.error("Error calling AI Judge service:", err);
-                logEvent('ai_judge_request_error', { feedbackId, error: err.message });
+                LoggingService.logEvent('ai_judge_request_error', { feedbackId, error: err.message });
             });
         } catch (err) {
             console.error("Error saving feedback to Firestore:", err);
-            logEvent('feedback_save_failed', { error: err.message });
+            LoggingService.logEvent('feedback_save_failed', { error: err.message });
         }
     }
 
@@ -589,7 +588,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         
-        logEvent('save_modal_opened', { type: isTranscript ? 'transcript' : 'packet' });
+        LoggingService.logEvent('save_modal_opened', { type: isTranscript ? 'transcript' : 'packet' });
         openModal("Save to Library", '<p>Loading your collections...</p>');
 
         try {
@@ -639,7 +638,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         } catch (error) {
             console.error("Error fetching collections:", error);
-            logEvent('save_modal_failure', { reason: 'fetch_collections_error', error: error.message });
+            LoggingService.logEvent('save_modal_failure', { reason: 'fetch_collections_error', error: error.message });
             openModal("Error", "Could not load your collections. Please try again.");
         }
     }
@@ -647,7 +646,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function saveTranscriptToLibrary(title, collectionId) {
         if (!currentUser) return;
         const transcriptContent = outputEl.textContent.trim();
-        logEvent('save_transcript_attempt', { collection_id: collectionId });
+        LoggingService.logEvent('save_transcript_attempt', { collection_id: collectionId });
         const saveButtonEl = document.getElementById('saveConfirmButton');
         saveButtonEl.disabled = true;
         saveButtonEl.textContent = 'Saving...';
@@ -656,12 +655,12 @@ document.addEventListener('DOMContentLoaded', () => {
             await addDoc(collection(db, "users", currentUser.uid, "transcripts"), {
                 title, content: transcriptContent, collectionId, createdAt: serverTimestamp()
             });
-            logEvent('save_transcript_success');
+            LoggingService.logEvent('save_transcript_success');
             saveButtonEl.textContent = 'Saved!';
             saveButtonEl.classList.add('bg-green-600');
             setTimeout(() => closeModal(), 1200);
         } catch (error) {
-            logEvent('save_transcript_failure', { error: error.message });
+            LoggingService.logEvent('save_transcript_failure', { error: error.message });
             saveButtonEl.disabled = false;
             saveButtonEl.textContent = 'Save Transcript';
         }
@@ -669,7 +668,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     async function savePacketToLibrary(title, collectionId, packet) {
         if (!currentUser || !packet) return;
-        logEvent('save_packet_attempt', { collection_id: collectionId });
+        LoggingService.logEvent('save_packet_attempt', { collection_id: collectionId });
         const saveButtonEl = document.getElementById('saveConfirmButton');
         saveButtonEl.disabled = true;
         saveButtonEl.textContent = 'Saving...';
@@ -678,12 +677,12 @@ document.addEventListener('DOMContentLoaded', () => {
             await addDoc(collection(db, "users", currentUser.uid, "learning_packets"), {
                 title, packet, collectionId, createdAt: serverTimestamp()
             });
-            logEvent('save_packet_success');
+            LoggingService.logEvent('save_packet_success');
             saveButtonEl.textContent = 'Saved!';
             saveButtonEl.classList.add('bg-green-600');
             setTimeout(() => closeModal(), 1200);
         } catch (error) {
-            logEvent('save_packet_failure', { error: error.message });
+            LoggingService.logEvent('save_packet_failure', { error: error.message });
             saveButtonEl.disabled = false;
             saveButtonEl.textContent = 'Save Packet';
         }
@@ -744,21 +743,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function openDebugModal() {
-        logEvent('debug_modal_opened');
+        LoggingService.logEvent('debug_modal_opened');
+        const logData = LoggingService.getLog();
         const reportHtml = `
-            <div id="debug-report-content">${JSON.stringify(sessionLog, null, 2)}</div>
-            <button id="copyLogBtn" class="btn">Copy to Clipboard</button>
+            <pre class="bg-slate-900 p-3 rounded-md text-xs whitespace-pre-wrap"><code>${JSON.stringify(logData, null, 2)}</code></pre>
+            <button id="copyLogBtn" class="btn btn-secondary mt-4">Copy to Clipboard</button>
         `;
         openModal("Session Debug Log", reportHtml);
         
         document.getElementById('copyLogBtn').addEventListener('click', () => {
-            const logText = JSON.stringify(sessionLog, null, 2);
+            const logText = JSON.stringify(logData, null, 2);
             navigator.clipboard.writeText(logText).then(() => {
                 alert('Log copied to clipboard!');
-                logEvent('debug_log_copied');
             }).catch(err => {
                 console.error('Failed to copy log', err);
-                logEvent('debug_log_copy_failed', { error: err.message });
             });
         });
     }

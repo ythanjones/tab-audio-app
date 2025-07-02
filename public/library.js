@@ -1,6 +1,7 @@
 // =================================================================
 // LIBRARY PAGE SCRIPT (v2.3 - Chat Enabled)
 // =================================================================
+import LoggingService from './loggingService.js';
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js";
 import { 
     getAuth, 
@@ -54,25 +55,23 @@ document.addEventListener('DOMContentLoaded', () => {
     const chatContainer = document.getElementById('chat-container');
     const viewToggleButton = document.getElementById('viewToggleButton');
     const debugButton = document.getElementById('debugButton');
-    const logEvent = (name, params = {}) => {
-        console.log(`LIBRARY EVENT: ${name}`, params);
-    }
 
     // --- INITIALIZATION ---
     try {
         const app = initializeApp(firebaseConfig);
         auth = getAuth(app);
         db = getFirestore(app);
-        logEvent('firebase_initialized');
+        LoggingService.init();
+        LoggingService.logEvent('library_page_loaded');
 
         onAuthStateChanged(auth, (user) => {
             if (user) {
                 currentUser = user;
-                logEvent('auth_state_changed', { status: 'logged_in' });
+                LoggingService.logEvent('auth_state_changed', { status: 'logged_in' });
                 loadUserLibrary(); 
             } else {
                 currentUser = null;
-                logEvent('auth_state_changed', { status: 'logged_out' });
+                LoggingService.logEvent('auth_state_changed', { status: 'logged_out' });
                 window.location.href = 'index.html';
             }
         });
@@ -88,8 +87,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function loadUserLibrary() {
         if (!currentUser) return;
-        logEvent('library_load_attempt');
-        collectionsListEl.innerHTML = '<li>Loading...</li>';
+        LoggingService.logEvent('library_load_attempt');
+        collectionsListEl.innerHTML = `
+            <li class="collection-item back-button">
+                <a href="index.html" title="Back to Main App">
+                    <i data-feather="arrow-left"></i><span>Back to Main App</span>
+                </a>
+            </li>
+        `;
         contentPanel.classList.add('hidden');
 
         const collectionsRef = collection(db, "users", currentUser.uid, "collections");
@@ -97,11 +102,10 @@ document.addEventListener('DOMContentLoaded', () => {
         
         try {
             const querySnapshot = await getDocs(q);
-            collectionsListEl.innerHTML = ''; 
             
             if (querySnapshot.empty) {
-                logEvent('library_load_success', { collections_found: 0 });
-                collectionsListEl.innerHTML = '<li class="p-2 text-slate-500 text-sm">No collections yet. Click "New Collection" to start.</li>';
+                LoggingService.logEvent('library_load_success', { collections_found: 0 });
+                collectionsListEl.innerHTML += '<li class="p-2 text-slate-500 text-sm">No collections yet. Click "New Collection" to start.</li>';
                 currentCollectionTitleEl.textContent = "Welcome";
                 itemsListEl.innerHTML = '';
                 emptyStateEl.classList.remove('hidden');
@@ -113,7 +117,7 @@ document.addEventListener('DOMContentLoaded', () => {
             querySnapshot.forEach((doc) => {
                 collections.push({ id: doc.id, ...doc.data() });
             });
-            logEvent('library_load_success', { collections_found: collections.length });
+            LoggingService.logEvent('library_load_success', { collections_found: collections.length });
 
             collections.forEach(col => renderCollection(col));
 
@@ -124,7 +128,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (error) {
             console.error("Error loading collections: ", error);
-            logEvent('library_load_failure', { error: error.message });
+            LoggingService.logEvent('library_load_failure', { error: error.message });
             collectionsListEl.innerHTML = '<li>Error loading collections.</li>';
         }
     }
@@ -150,7 +154,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function loadCollectionItems(collectionId, collectionName) {
         if (!currentUser) return;
         activeCollectionId = collectionId;
-        logEvent('collection_items_load_attempt', { collectionId });
+        LoggingService.logEvent('collection_items_load_attempt', { collectionId });
 
         currentCollectionTitleEl.textContent = collectionName;
         document.querySelectorAll('.collection-item').forEach(item => {
@@ -175,7 +179,7 @@ document.addEventListener('DOMContentLoaded', () => {
             items.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
 
             itemsListEl.innerHTML = ''; 
-            logEvent('collection_items_load_success', { collectionId, items_found: items.length });
+            LoggingService.logEvent('collection_items_load_success', { collectionId, items_found: items.length });
 
             if (items.length === 0) {
                 emptyStateEl.classList.remove('hidden');
@@ -185,7 +189,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (error) {
             console.error(`Error loading items for collection ${collectionId}:`, error);
-            logEvent('collection_items_load_failure', { collectionId, error: error.message });
+            LoggingService.logEvent('collection_items_load_failure', { collectionId, error: error.message });
             itemsListEl.innerHTML = '<li>Error loading items.</li>';
         }
     }
@@ -230,33 +234,33 @@ document.addEventListener('DOMContentLoaded', () => {
     
     async function createNewCollection(name) {
         if (!currentUser || !name) return;
-        logEvent('collection_create_attempt', { name });
+        LoggingService.logEvent('collection_create_attempt', { name });
         try {
             await addDoc(collection(db, "users", currentUser.uid, "collections"), {
                 name: name,
                 createdAt: serverTimestamp()
             });
-            logEvent('collection_create_success');
+            LoggingService.logEvent('collection_create_success');
             loadUserLibrary();
         } catch (error) {
             console.error("Error creating new collection: ", error);
-            logEvent('collection_create_failure', { error: error.message });
+            LoggingService.logEvent('collection_create_failure', { error: error.message });
             alert("Could not create collection.");
         }
     }
     
     async function deleteItem(itemId, itemType) {
         if (!currentUser || !confirm(`Are you sure you want to delete this ${itemType}?`)) return;
-        logEvent('item_delete_attempt', { itemId, itemType });
+        LoggingService.logEvent('item_delete_attempt', { itemId, itemType });
         const collectionName = itemType === 'transcript' ? 'transcripts' : 'learning_packets';
         try {
             await deleteDoc(doc(db, "users", currentUser.uid, collectionName, itemId));
-            logEvent('item_delete_success', { itemId });
+            LoggingService.logEvent('item_delete_success', { itemId });
             const currentCollectionName = currentCollectionTitleEl.textContent;
             loadCollectionItems(activeCollectionId, currentCollectionName);
         } catch (error) {
             console.error("Error deleting item:", error);
-            logEvent('item_delete_failure', { itemId, error: error.message });
+            LoggingService.logEvent('item_delete_failure', { itemId, error: error.message });
             alert("Could not delete item.");
         }
     }
@@ -264,7 +268,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function deleteActiveCollection() {
         if (!currentUser || !activeCollectionId) return;
         if (!confirm(`Are you sure you want to delete this entire collection and all its contents? This cannot be undone.`)) return;
-        logEvent('collection_delete_attempt', { collectionId: activeCollectionId });
+        LoggingService.logEvent('collection_delete_attempt', { collectionId: activeCollectionId });
         try {
             const batch = writeBatch(db);
 
@@ -282,11 +286,11 @@ document.addEventListener('DOMContentLoaded', () => {
             batch.delete(collectionDocRef);
 
             await batch.commit();
-            logEvent('collection_delete_success', { collectionId: activeCollectionId });
+            LoggingService.logEvent('collection_delete_success', { collectionId: activeCollectionId });
             loadUserLibrary();
         } catch (error) {
             console.error("Error deleting collection:", error);
-            logEvent('collection_delete_failure', { collectionId: activeCollectionId, error: error.message });
+            LoggingService.logEvent('collection_delete_failure', { collectionId: activeCollectionId, error: error.message });
             alert("Could not delete collection.");
         }
     }
@@ -364,6 +368,58 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // =================================================================
+    // DEBUG MODAL
+    // =================================================================
+    
+    function openDebugModal() {
+        LoggingService.logEvent('debug_modal_opened_library');
+        const logData = LoggingService.getLog();
+        const reportHtml = `
+            <pre class="bg-slate-900 p-3 rounded-md text-xs whitespace-pre-wrap"><code>${JSON.stringify(logData, null, 2)}</code></pre>
+            <button id="copyLogBtn" class="btn btn-secondary mt-4">Copy to Clipboard</button>
+        `;
+        openModal("Session Debug Log", reportHtml);
+        
+        document.getElementById('copyLogBtn').addEventListener('click', () => {
+            const logText = JSON.stringify(logData, null, 2);
+            navigator.clipboard.writeText(logText).then(() => {
+                alert('Log copied to clipboard!');
+            }).catch(err => {
+                console.error('Failed to copy log', err);
+            });
+        });
+    }
+    
+    function openModal(title, content) {
+        // Simple modal implementation for library page
+        const modalHtml = `
+            <div id="modal-backdrop" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50">
+                <div id="modal-content" class="modal-content-area bg-slate-800 p-6 rounded-lg max-w-2xl w-full">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-2xl font-semibold text-slate-100">${title}</h2>
+                        <button id="modal-close" class="text-slate-400 hover:text-slate-100 text-3xl leading-none">&times;</button>
+                    </div>
+                    <div class="text-slate-300 max-h-[70vh] overflow-y-auto">${content}</div>
+                </div>
+            </div>
+        `;
+        
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        
+        const backdrop = document.getElementById('modal-backdrop');
+        const closeBtn = document.getElementById('modal-close');
+        
+        const closeModal = () => {
+            backdrop.remove();
+        };
+        
+        closeBtn.addEventListener('click', closeModal);
+        backdrop.addEventListener('click', (e) => {
+            if (e.target === backdrop) closeModal();
+        });
+    }
+
+    // =================================================================
     // EVENT LISTENERS
     // =================================================================
     
@@ -378,7 +434,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setView(!isChatView); // Toggle the view
     });
     newCollectionBtn.addEventListener('click', () => {
-        logEvent('ui_action', { component: 'new_collection_button' });
+        LoggingService.logEvent('ui_action', { component: 'new_collection_button' });
         const name = prompt("Enter a name for your new collection:");
         if (name && name.trim() !== '') {
             createNewCollection(name.trim());
@@ -386,13 +442,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     deleteCollectionBtn.addEventListener('click', () => {
-        logEvent('ui_action', { component: 'delete_collection_button' });
+        LoggingService.logEvent('ui_action', { component: 'delete_collection_button' });
         deleteActiveCollection();
     });
+    
     debugButton.addEventListener('click', openDebugModal);
-    function openDebugModal() {
-        // This function can be expanded later if needed
-        alert("Debug modal for library page is not fully implemented yet.");
-    }
 
 });
