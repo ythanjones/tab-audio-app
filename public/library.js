@@ -67,7 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
         onAuthStateChanged(auth, (user) => {
             if (user) {
                 currentUser = user;
-                LoggingService.logEvent('auth_state_changed', { status: 'logged_in' });
+                LoggingService.logEvent('auth_state_changed', { status: 'logged_in', userId: user.uid });
                 loadUserLibrary(); 
             } else {
                 currentUser = null;
@@ -77,6 +77,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     } catch (error) {
         console.error("Firebase Initialization Error on Library Page:", error);
+        LoggingService.logEvent('firebase_init_error', { error: error.message, stack: error.stack });
         contentPanel.innerHTML = '<h1>Error: Could not initialize application.</h1>';
     }
 
@@ -87,7 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function loadUserLibrary() {
         if (!currentUser) return;
-        LoggingService.logEvent('library_load_attempt');
+        LoggingService.logEvent('library_load_attempt', { userId: currentUser.uid });
         collectionsListEl.innerHTML = `
             <li class="collection-item back-button">
                 <a href="index.html" title="Back to Main App">
@@ -128,7 +129,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (error) {
             console.error("Error loading collections: ", error);
-            LoggingService.logEvent('library_load_failure', { error: error.message });
+            LoggingService.logEvent('library_load_failure', { 
+                error: error.message, 
+                code: error.code,
+                stack: error.stack 
+            });
             collectionsListEl.innerHTML = '<li>Error loading collections.</li>';
         }
     }
@@ -154,7 +159,11 @@ document.addEventListener('DOMContentLoaded', () => {
     async function loadCollectionItems(collectionId, collectionName) {
         if (!currentUser) return;
         activeCollectionId = collectionId;
-        LoggingService.logEvent('collection_items_load_attempt', { collectionId });
+        LoggingService.logEvent('collection_items_load_attempt', { 
+            collectionId,
+            collectionName,
+            userId: currentUser.uid 
+        });
 
         currentCollectionTitleEl.textContent = collectionName;
         document.querySelectorAll('.collection-item').forEach(item => {
@@ -166,20 +175,57 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             const items = [];
+            
+            // Load transcripts
+            LoggingService.logEvent('loading_transcripts', { collectionId });
             const transcriptsRef = collection(db, "users", currentUser.uid, "transcripts");
             const tq = query(transcriptsRef, where("collectionId", "==", collectionId), orderBy("createdAt", "desc"));
             const tSnapshot = await getDocs(tq);
-            tSnapshot.forEach(doc => items.push({ id: doc.id, type: 'transcript', ...doc.data() }));
+            
+            LoggingService.logEvent('transcripts_loaded', { 
+                collectionId, 
+                count: tSnapshot.size 
+            });
+            
+            tSnapshot.forEach(doc => {
+                const data = doc.data();
+                items.push({ 
+                    id: doc.id, 
+                    type: 'transcript', 
+                    ...data 
+                });
+            });
 
+            // Load learning packets
+            LoggingService.logEvent('loading_packets', { collectionId });
             const packetsRef = collection(db, "users", currentUser.uid, "learning_packets");
             const pq = query(packetsRef, where("collectionId", "==", collectionId), orderBy("createdAt", "desc"));
             const pSnapshot = await getDocs(pq);
-            pSnapshot.forEach(doc => items.push({ id: doc.id, type: 'packet', ...doc.data() }));
+            
+            LoggingService.logEvent('packets_loaded', { 
+                collectionId, 
+                count: pSnapshot.size 
+            });
+            
+            pSnapshot.forEach(doc => {
+                const data = doc.data();
+                items.push({ 
+                    id: doc.id, 
+                    type: 'packet', 
+                    ...data 
+                });
+            });
 
+            // Sort items by creation date
             items.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
 
             itemsListEl.innerHTML = ''; 
-            LoggingService.logEvent('collection_items_load_success', { collectionId, items_found: items.length });
+            LoggingService.logEvent('collection_items_load_success', { 
+                collectionId, 
+                total_items: items.length,
+                transcripts: tSnapshot.size,
+                packets: pSnapshot.size
+            });
 
             if (items.length === 0) {
                 emptyStateEl.classList.remove('hidden');
@@ -189,8 +235,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (error) {
             console.error(`Error loading items for collection ${collectionId}:`, error);
-            LoggingService.logEvent('collection_items_load_failure', { collectionId, error: error.message });
-            itemsListEl.innerHTML = '<li>Error loading items.</li>';
+            LoggingService.logEvent('collection_items_load_failure', { 
+                collectionId, 
+                error: error.message,
+                code: error.code,
+                stack: error.stack
+            });
+            
+            // More detailed error message
+            itemsListEl.innerHTML = `
+                <li class="text-red-400">
+                    Error loading items: ${error.message || 'Unknown error'}
+                    <br><small class="text-red-300">Check console for details</small>
+                </li>
+            `;
         }
     }
 
@@ -244,8 +302,11 @@ document.addEventListener('DOMContentLoaded', () => {
             loadUserLibrary();
         } catch (error) {
             console.error("Error creating new collection: ", error);
-            LoggingService.logEvent('collection_create_failure', { error: error.message });
-            alert("Could not create collection.");
+            LoggingService.logEvent('collection_create_failure', { 
+                error: error.message,
+                code: error.code 
+            });
+            alert("Could not create collection. " + error.message);
         }
     }
     
@@ -260,8 +321,12 @@ document.addEventListener('DOMContentLoaded', () => {
             loadCollectionItems(activeCollectionId, currentCollectionName);
         } catch (error) {
             console.error("Error deleting item:", error);
-            LoggingService.logEvent('item_delete_failure', { itemId, error: error.message });
-            alert("Could not delete item.");
+            LoggingService.logEvent('item_delete_failure', { 
+                itemId, 
+                error: error.message,
+                code: error.code 
+            });
+            alert("Could not delete item. " + error.message);
         }
     }
 
@@ -290,8 +355,12 @@ document.addEventListener('DOMContentLoaded', () => {
             loadUserLibrary();
         } catch (error) {
             console.error("Error deleting collection:", error);
-            LoggingService.logEvent('collection_delete_failure', { collectionId: activeCollectionId, error: error.message });
-            alert("Could not delete collection.");
+            LoggingService.logEvent('collection_delete_failure', { 
+                collectionId: activeCollectionId, 
+                error: error.message,
+                code: error.code 
+            });
+            alert("Could not delete collection. " + error.message);
         }
     }
 
@@ -350,6 +419,10 @@ document.addEventListener('DOMContentLoaded', () => {
             addChatMessage(data.answer, 'bot');
         } catch (error) {
             console.error("Error during chat:", error);
+            LoggingService.logEvent('chat_error', { 
+                error: error.message,
+                stack: error.stack 
+            });
             addChatMessage(`Sorry, I ran into an error: ${error.message}`, 'bot');
         } finally {
             sendChatBtn.disabled = false;
@@ -368,38 +441,67 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // =================================================================
-    // DEBUG MODAL
+    // DEBUG MODAL - IMPROVED
     // =================================================================
     
     function openDebugModal() {
         LoggingService.logEvent('debug_modal_opened_library');
         const logData = LoggingService.getLog();
+        const logText = JSON.stringify(logData, null, 2);
+        
         const reportHtml = `
-            <pre class="bg-slate-900 p-3 rounded-md text-xs whitespace-pre-wrap"><code>${JSON.stringify(logData, null, 2)}</code></pre>
-            <button id="copyLogBtn" class="btn btn-secondary mt-4">Copy to Clipboard</button>
+            <div style="position: relative;">
+                <pre id="debugLogContent" class="bg-slate-900 p-3 rounded-md text-xs whitespace-pre-wrap" style="max-height: 60vh; overflow-y: auto; user-select: text; cursor: text;"><code>${logText}</code></pre>
+                <div class="mt-4 flex gap-2">
+                    <button id="copyLogBtn" class="btn btn-secondary">Copy to Clipboard</button>
+                    <button id="selectAllBtn" class="btn btn-secondary">Select All</button>
+                </div>
+                <div id="copyFeedback" class="mt-2 text-green-400 hidden">Log copied to clipboard!</div>
+            </div>
         `;
         openModal("Session Debug Log", reportHtml);
         
+        // Copy to clipboard functionality
         document.getElementById('copyLogBtn').addEventListener('click', () => {
-            const logText = JSON.stringify(logData, null, 2);
             navigator.clipboard.writeText(logText).then(() => {
-                alert('Log copied to clipboard!');
+                const feedback = document.getElementById('copyFeedback');
+                feedback.classList.remove('hidden');
+                setTimeout(() => feedback.classList.add('hidden'), 2000);
+                LoggingService.logEvent('debug_log_copied');
             }).catch(err => {
                 console.error('Failed to copy log', err);
+                alert('Failed to copy log. You can manually select and copy the text.');
+                LoggingService.logEvent('debug_log_copy_failed', { error: err.message });
             });
+        });
+        
+        // Select all functionality
+        document.getElementById('selectAllBtn').addEventListener('click', () => {
+            const logContent = document.getElementById('debugLogContent');
+            const range = document.createRange();
+            range.selectNodeContents(logContent);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
         });
     }
     
     function openModal(title, content) {
-        // Simple modal implementation for library page
+        // Remove any existing modal first
+        const existingModal = document.getElementById('modal-backdrop');
+        if (existingModal) {
+            existingModal.remove();
+        }
+        
+        // Create modal with better styling for debug content
         const modalHtml = `
-            <div id="modal-backdrop" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50">
-                <div id="modal-content" class="modal-content-area bg-slate-800 p-6 rounded-lg max-w-2xl w-full">
-                    <div class="flex justify-between items-center mb-4">
+            <div id="modal-backdrop" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50" style="backdrop-filter: blur(4px);">
+                <div id="modal-content" class="modal-content-area bg-slate-800 p-6 rounded-lg max-w-4xl w-full" style="max-height: 90vh; display: flex; flex-direction: column;">
+                    <div class="flex justify-between items-center mb-4 flex-shrink-0">
                         <h2 class="text-2xl font-semibold text-slate-100">${title}</h2>
                         <button id="modal-close" class="text-slate-400 hover:text-slate-100 text-3xl leading-none">&times;</button>
                     </div>
-                    <div class="text-slate-300 max-h-[70vh] overflow-y-auto">${content}</div>
+                    <div class="text-slate-300 overflow-auto flex-grow">${content}</div>
                 </div>
             </div>
         `;
