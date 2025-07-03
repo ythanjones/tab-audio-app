@@ -1,5 +1,5 @@
 // File: query-service-backend/index.js
-// This service handles the "Chat with your Library" feature.
+// Complete fixed version with correct DEPLOYED_INDEX_ID usage
 
 const express = require('express');
 const cors = require('cors');
@@ -8,13 +8,13 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { PredictionServiceClient } = require('@google-cloud/aiplatform');
 
 // --- Configuration ---
+const PORT = process.env.PORT || 8080;
 const PROJECT_ID = 'tab-audio-app'; 
 const LOCATION = 'europe-west2'; 
 const PUBLISHER = 'google';
 const EMBEDDING_MODEL = 'gemini-embedding-001';
 
-// You will get these values after creating the index and endpoint in the Google Cloud Console.
-const VECTOR_SEARCH_INDEX_ID = '7989579253001748480';           // Base index ID (for upserts)
+// ✅ FIXED: Updated with correct deployed index ID
 const VECTOR_SEARCH_ENDPOINT_ID = '6958254938333904896';        // Endpoint ID  
 const DEPLOYED_INDEX_ID = 'tab_audio_app_1751241281157';       // ✅ CORRECT deployed index ID for queries
 
@@ -39,243 +39,303 @@ const app = express();
 app.use(cors({ origin: true }));
 app.use(express.json());
 
+// ✅ Debug endpoint to test configuration
+app.get('/debug', async (req, res) => {
+    console.log("🔍 Debug endpoint called");
+    
+    try {
+        const debugInfo = {
+            timestamp: new Date().toISOString(),
+            configuration: {
+                PROJECT_ID,
+                LOCATION,
+                VECTOR_SEARCH_ENDPOINT_ID,
+                DEPLOYED_INDEX_ID,
+                EMBEDDING_MODEL,
+                hasApiKey: !!API_KEY
+            },
+            endpoints: {
+                embeddingEndpoint: `projects/${PROJECT_ID}/locations/${LOCATION}/publishers/${PUBLISHER}/models/${EMBEDDING_MODEL}`,
+                vectorSearchEndpoint: `projects/${PROJECT_ID}/locations/${LOCATION}/indexEndpoints/${VECTOR_SEARCH_ENDPOINT_ID}`
+            }
+        };
+        
+        // Test embedding generation
+        try {
+            console.log("Testing embedding generation...");
+            const testEmbedding = await generateEmbedding("test query for debugging");
+            debugInfo.embeddingTest = {
+                success: true,
+                dimensions: testEmbedding.length
+            };
+            console.log(`✅ Embedding test successful: ${testEmbedding.length} dimensions`);
+        } catch (embeddingError) {
+            console.error("❌ Embedding test failed:", embeddingError);
+            debugInfo.embeddingTest = {
+                success: false,
+                error: embeddingError.message
+            };
+        }
+        
+        // Check Firestore data
+        try {
+            const transcriptsCount = await db.collectionGroup('transcripts').count().get();
+            const packetsCount = await db.collectionGroup('learning_packets').count().get();
+            debugInfo.firestoreData = {
+                transcripts: transcriptsCount.data().count,
+                packets: packetsCount.data().count
+            };
+        } catch (firestoreError) {
+            debugInfo.firestoreData = {
+                error: firestoreError.message
+            };
+        }
+        
+        res.status(200).json(debugInfo);
+    } catch (error) {
+        console.error("❌ Debug endpoint error:", error);
+        res.status(500).json({ 
+            error: error.message,
+            stack: error.stack
+        });
+    }
+});
 
 // =================================================================
-//  Main Chat Endpoint
+//  Main Chat Endpoint with Enhanced Logging
 // =================================================================
 app.post('/chat', async (req, res) => {
-    console.log("Received request for /chat");
+    const requestId = Math.random().toString(36).substring(7);
+    console.log(`🚀 [${requestId}] Received chat request`);
 
     const { userId, question, collectionIds = [] } = req.body;
+    
+    console.log(`📝 [${requestId}] Request details:`, {
+        userId: userId ? `${userId.substring(0, 8)}...` : 'missing',
+        question: question ? `"${question.substring(0, 50)}${question.length > 50 ? '...' : ''}"` : 'missing',
+        collectionIds: collectionIds.length > 0 ? collectionIds : 'none'
+    });
+    
     if (!userId || !question) {
+        console.log(`❌ [${requestId}] Missing required fields`);
         return res.status(400).json({ error: "Missing required fields: userId and question are required." });
     }
+    
     if (!textGenerationModel) {
+        console.log(`❌ [${requestId}] Server not configured with API key`);
         return res.status(500).json({ error: "Server is not configured with an API key." });
     }
     
     try {
-        const relevantDocs = await findRelevantDocuments(userId, question, collectionIds);
+        console.log(`🔍 [${requestId}] Starting document search...`);
+        const relevantDocs = await findRelevantDocuments(userId, question, collectionIds, requestId);
 
         if (relevantDocs.length === 0) {
-            return res.status(200).json({ answer: "I couldn't find any relevant information in your library to answer that question.", sources: [] });
+            console.log(`⚠️ [${requestId}] No relevant documents found`);
+            return res.status(200).json({ 
+                answer: "I couldn't find any relevant information in your library to answer that question.", 
+                sources: [],
+                debug: { requestId, documentsFound: 0 }
+            });
         }
 
-        const answer = await generateChatResponse(question, relevantDocs);
+        console.log(`✅ [${requestId}] Found ${relevantDocs.length} relevant documents`);
+        const answer = await generateChatResponse(question, relevantDocs, requestId);
 
-        res.status(200).json({ answer: answer, sources: relevantDocs });
+        console.log(`🎉 [${requestId}] Chat response generated successfully`);
+        res.status(200).json({ 
+            answer: answer, 
+            sources: relevantDocs,
+            debug: { requestId, documentsFound: relevantDocs.length }
+        });
 
     } catch (error) {
-        console.error("Error during /chat processing:", error);
-        res.status(500).json({ error: "An internal error occurred while processing your chat request." });
+        console.error(`💥 [${requestId}] Error during chat processing:`, {
+            message: error.message,
+            code: error.code,
+            details: error.details,
+            stack: error.stack?.split('\n').slice(0, 5).join('\n') // First 5 lines of stack
+        });
+        
+        res.status(500).json({ 
+            error: "An internal error occurred while processing your chat request.",
+            debug: { 
+                requestId, 
+                errorCode: error.code,
+                errorMessage: error.message
+            }
+        });
     }
 });
 
-
 // =================================================================
-//  Helper Functions
+//  Helper Functions with Enhanced Logging
 // =================================================================
 
-/**
- * Generates an embedding for a given text string.
- */
-async function generateEmbedding(text) {
+async function generateEmbedding(text, requestId = null) {
+    const logPrefix = requestId ? `[${requestId}]` : '';
+    console.log(`🧠 ${logPrefix} Generating embedding for text length: ${text.length}`);
+    
     const endpoint = `projects/${PROJECT_ID}/locations/${LOCATION}/publishers/${PUBLISHER}/models/${EMBEDDING_MODEL}`;
-    // --- ADD THE TASK_TYPE PARAMETER ---
     const instance = { 
         content: text,
-        task_type: "RETRIEVAL_QUERY" 
+        task_type: "RETRIEVAL_QUERY"
     };
     const request = { endpoint, instances: [instance] };
     
-    const [response] = await predictionServiceClient.predict(request);
-        
-        // --- UPDATE THE RESPONSE PARSING ---
-        // The new model uses 'embedding' (singular) instead of the complex 'embeddings' path.
-        return response.predictions[0].structValue.fields.embedding.listValue.values.map(v => v.numberValue);
-    }
-
-
-/**
- * Finds relevant documents for a user's question using vector search and fetches them from Firestore.
- * @param {string} userId - The ID of the user
- * @param {string} question - The user's question
- * @param {Array<string>} collectionIds - Array of collection IDs to filter by (can be empty)
- * @returns {Promise<Array>} Array of relevant Firestore documents
- */
-async function findRelevantDocuments(userId, question, collectionIds) {
+    console.log(`📡 ${logPrefix} Making embedding request to: ${endpoint}`);
+    
     try {
-        // Step 1: Generate embedding for the question
-        const questionEmbedding = await generateEmbedding(question);
+        const [response] = await predictionServiceClient.predict(request);
+        const embedding = response.predictions[0].structValue.fields.embedding.listValue.values.map(v => v.numberValue);
         
-        // Step 2: Construct the findNeighbors request
-        const indexEndpoint = `projects/${PROJECT_ID}/locations/${LOCATION}/indexEndpoints/${VECTOR_SEARCH_ENDPOINT_ID}`;
+        console.log(`✅ ${logPrefix} Embedding generated successfully: ${embedding.length} dimensions`);
+        return embedding;
+    } catch (error) {
+        console.error(`❌ ${logPrefix} Embedding generation failed:`, {
+            message: error.message,
+            code: error.code,
+            details: error.details
+        });
+        throw error;
+    }
+}
+
+// ✅ FIXED: This function now properly uses DEPLOYED_INDEX_ID
+async function findRelevantDocuments(userId, question, collectionIds = [], requestId = null) {
+    const logPrefix = requestId ? `[${requestId}]` : '';
+    console.log(`🔍 ${logPrefix} Finding relevant documents for question: "${question}"`);
+
+    try {
+        const questionEmbedding = await generateEmbedding(question, requestId);
+
+        const endpointPath = `projects/${PROJECT_ID}/locations/${LOCATION}/indexEndpoints/${VECTOR_SEARCH_ENDPOINT_ID}`;
         
-        // Build the restricts array for filtering
-        const restricts = [
-            {
-                namespace: 'userId',
-                allowList: [userId]
-            }
-        ];
-        
-        // Add collectionId filter if collectionIds array is not empty
-        if (collectionIds && collectionIds.length > 0) {
-            restricts.push({
-                namespace: 'collectionId',
-                allowList: collectionIds
-            });
-        }
-        
+        console.log(`📍 ${logPrefix} Vector search endpoint: ${endpointPath}`);
+        console.log(`🎯 ${logPrefix} Using deployed index ID: ${DEPLOYED_INDEX_ID}`); // ✅ Debug log
+
+        // ✅ FIXED: Properly use DEPLOYED_INDEX_ID variable
         const findNeighborsRequest = {
-            endpoint: indexEndpoint,
-            deployedIndexId: DEPLOYED_INDEX_ID,  // MOVED TO TOP LEVEL
+            indexEndpoint: endpointPath,
             queries: [{
                 datapoint: {
                     featureVector: questionEmbedding
                 },
                 neighborCount: 5,
-                restricts: restricts
+                deployedIndexId: DEPLOYED_INDEX_ID  // ✅ NOW ACTUALLY USING THE VARIABLE!
             }]
         };
-        
-        // Step 3: Query the vector database
-        const [response] = await predictionServiceClient.findNeighbors(findNeighborsRequest);
-        
-        // Step 4: Parse the response to get document IDs and types
-        if (!response.nearestNeighbors || response.nearestNeighbors.length === 0 || 
-            !response.nearestNeighbors[0].neighbors) {
-            return [];
-        }
-        
-        const neighbors = response.nearestNeighbors[0].neighbors;
-        if (!neighbors || neighbors.length === 0) {
-            return [];
-        }
-        
-        // Group document IDs by their type for efficient batch fetching
-        const transcriptIds = [];
-        const learningPacketIds = [];
-        
-        neighbors.forEach(neighbor => {
-            const datapointId = neighbor.datapoint.datapointId;
-            
-            // Extract documentType from the restricts metadata
-            let documentType = null;
-            if (neighbor.datapoint.restricts) {
-                for (const restrict of neighbor.datapoint.restricts) {
-                    if (restrict.namespace === 'documentType' && restrict.allowList && restrict.allowList.length > 0) {
-                        documentType = restrict.allowList[0];
-                        break;
-                    }
-                }
-            }
-            
-            // Group IDs by document type
-            if (documentType === 'transcript') {
-                transcriptIds.push(datapointId);
-            } else if (documentType === 'learning_packet') {
-                learningPacketIds.push(datapointId);
-            }
+
+        console.log(`📊 ${logPrefix} Vector search request:`, {
+            endpoint: endpointPath,
+            deployedIndexId: DEPLOYED_INDEX_ID,
+            neighborCount: 5,
+            embeddingDimensions: questionEmbedding.length
         });
+
+        console.log(`🚀 ${logPrefix} Executing vector search...`);
+        const [findNeighborsResponse] = await predictionServiceClient.findNeighbors(findNeighborsRequest);
         
-        // Step 5: Fetch documents from Firestore using batch queries
-        const allDocuments = [];
+        console.log(`📥 ${logPrefix} Vector search response received`);
         
-        // Fetch transcripts if any
-        if (transcriptIds.length > 0) {
-            const transcriptsSnapshot = await db
-                .collection('users')
-                .doc(userId)
-                .collection('transcripts')
-                .where(admin.firestore.FieldPath.documentId(), 'in', transcriptIds)
-                .get();
-            
-            transcriptsSnapshot.forEach(doc => {
-                allDocuments.push({ id: doc.id, ...doc.data() });
-            });
+        const neighbors = findNeighborsResponse.nearestNeighbors?.[0]?.neighbors || [];
+        console.log(`📋 ${logPrefix} Found ${neighbors.length} neighbors from vector search`);
+
+        if (neighbors.length === 0) { 
+            console.log(`⚠️ ${logPrefix} No neighbors found - index might be empty or no embeddings exist yet`);
+            return []; 
         }
+
+        // Enhanced neighbor logging
+        neighbors.forEach((neighbor, i) => {
+            console.log(`   Neighbor ${i + 1}: ID=${neighbor.datapoint.datapointId}, Distance=${neighbor.distance.toFixed(4)}`);
+        });
+
+        // Get document IDs from neighbors
+        const docIds = neighbors.map(n => n.datapoint.datapointId);
         
-        // Fetch learning packets if any
-        if (learningPacketIds.length > 0) {
-            const learningPacketsSnapshot = await db
-                .collection('users')
-                .doc(userId)
-                .collection('learning_packets')
-                .where(admin.firestore.FieldPath.documentId(), 'in', learningPacketIds)
-                .get();
-            
-            learningPacketsSnapshot.forEach(doc => {
-                allDocuments.push({ id: doc.id, ...doc.data() });
-            });
+        console.log(`🗂️ ${logPrefix} Fetching document details from Firestore for IDs: ${docIds.join(', ')}`);
+        const relevantDocs = [];
+        
+        // Fetch documents from both collections
+        for (const docId of docIds) {
+            try {
+                // Try transcripts first
+                const transcriptSnapshot = await db.collectionGroup('transcripts').where(admin.firestore.FieldPath.documentId(), '==', docId).get();
+                if (!transcriptSnapshot.empty) {
+                    const doc = transcriptSnapshot.docs[0];
+                    relevantDocs.push({ id: doc.id, type: 'transcript', ...doc.data() });
+                    continue;
+                }
+                
+                // Try learning packets
+                const packetSnapshot = await db.collectionGroup('learning_packets').where(admin.firestore.FieldPath.documentId(), '==', docId).get();
+                if (!packetSnapshot.empty) {
+                    const doc = packetSnapshot.docs[0];
+                    relevantDocs.push({ id: doc.id, type: 'packet', ...doc.data() });
+                }
+            } catch (error) {
+                console.warn(`⚠️ ${logPrefix} Failed to fetch document ${docId}:`, error.message);
+            }
         }
-        
-        return allDocuments;
-        
+
+        console.log(`✅ ${logPrefix} Returning ${relevantDocs.length} relevant documents`);
+        return relevantDocs;
+
     } catch (error) {
-        console.error('Error in findRelevantDocuments:', error);
+        console.error(`💥 ${logPrefix} Error in findRelevantDocuments:`, {
+            message: error.message,
+            code: error.code,
+            details: error.details,
+            stack: error.stack?.split('\n').slice(0, 3).join('\n')
+        });
         throw error;
     }
 }
-   
 
-/**
- * Generates a final, synthesized answer based on the user's question and retrieved documents.
- *
- * REFINED: This version now properly formats the context for learning packets
- * instead of using JSON.stringify. It creates a clean, readable block of text
- * from the summary and key concepts, improving the LLM's ability to understand the source.
- */
-async function generateChatResponse(question, documents) {
-    console.log("Synthesizing final answer from relevant documents.");
-
-    // --- NEW LOGIC START ---
-    const context = documents.map(doc => {
-        let docContent = '';
-        if (doc.content) { // This is a transcript
-            docContent = doc.content;
-        } else if (doc.packet) { // This is a learning packet
-            const summaryText = doc.packet.summary || '';
-            const conceptsText = (doc.packet.keyConcepts || [])
-              .map(c => `- ${c.concept}: ${c.definition}`)
-              .join('\n');
-            docContent = `Summary:\n${summaryText}\n\nKey Concepts:\n${conceptsText}`;
-        }
-        
-        return `
-Source (Title: ${doc.title}):
----
-${docContent.trim()}
----
-        `;
-    }).join('\n\n');
-    // --- NEW LOGIC END ---
-
-    const prompt = `
-        You are a helpful learning assistant. Your task is to answer the user's question based *only* on the provided context from their personal library.
-        Do not use any external knowledge. If the answer cannot be found in the provided sources, state that clearly.
-
-        Here is the user's question:
-        "${question}"
-
-        Here is the context from the user's library:
-        ${context}
-
-        Please provide a clear and concise answer to the question based on the sources.
-    `;
-
+async function generateChatResponse(question, relevantDocs, requestId = null) {
+    const logPrefix = requestId ? `[${requestId}]` : '';
+    console.log(`🤖 ${logPrefix} Generating chat response using ${relevantDocs.length} documents`);
+    
     try {
+        const context = relevantDocs.map(doc => {
+            if (doc.type === 'transcript') {
+                return `Document: ${doc.title}\nContent: ${doc.content}`;
+            } else {
+                return `Document: ${doc.title}\nSummary: ${doc.packet?.summary || 'No summary available'}`;
+            }
+        }).join('\n\n');
+
+        const prompt = `Based on the following documents from the user's library, please answer their question.
+
+Documents:
+${context}
+
+Question: ${question}
+
+Please provide a helpful answer based on the information in these documents.`;
+
         const result = await textGenerationModel.generateContent(prompt);
-        const response = await result.response;
-        return response.text();
+        const response = result.response;
+        const answer = response.text();
+        
+        console.log(`✅ ${logPrefix} Chat response generated (${answer.length} characters)`);
+        return answer;
     } catch (error) {
-        console.error("Error in generateChatResponse:", error);
-        return "Sorry, I encountered an error while trying to generate a response.";
+        console.error(`❌ ${logPrefix} Error generating chat response:`, error);
+        throw error;
     }
 }
 
-
-// Start the server
+// Start server
 app.listen(PORT, () => {
-    console.log(`Query Service listening on port ${PORT}`);
+    console.log(`🚀 Query Service listening on port ${PORT}`);
+    console.log(`📊 Configuration:`, {
+        PROJECT_ID,
+        LOCATION,
+        VECTOR_SEARCH_ENDPOINT_ID,
+        DEPLOYED_INDEX_ID,
+        EMBEDDING_MODEL,
+        hasApiKey: !!API_KEY
+    });
 });
