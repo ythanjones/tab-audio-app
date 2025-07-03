@@ -16,7 +16,7 @@ const EMBEDDING_MODEL = 'gemini-embedding-001'; // Replaced retired 'textembeddi
 
 // You will need to provide these IDs from your Vertex AI setup
 const VECTOR_SEARCH_ENDPOINT_ID = '6958254938333904896'; 
-const DEPLOYED_INDEX_ID = '7989579253001748480'; // The ID of the DEPLOYED index on the endpoint
+const DEPLOYED_INDEX_ID = 'tab_audio_app_1751241281157'; // ✅ CORRECT - This is the deployed index ID
 
 // Initialize Firebase and AI Clients
 admin.initializeApp();
