@@ -129,12 +129,12 @@ async function findRelevantDocuments(userId, question, collectionIds) {
         
         const findNeighborsRequest = {
             endpoint: indexEndpoint,
+            deployedIndexId: DEPLOYED_INDEX_ID,  // MOVED TO TOP LEVEL
             queries: [{
                 datapoint: {
                     featureVector: questionEmbedding
                 },
                 neighborCount: 5,
-                deployedIndexId: DEPLOYED_INDEX_ID,
                 restricts: restricts
             }]
         };
