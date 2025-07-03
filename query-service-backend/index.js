@@ -106,16 +106,24 @@ async function generateEmbedding(text) {
 async function findRelevantDocuments(userId, question, collectionIds) {
     try {
         // Step 1: Generate embedding for the question
-        const questionEmbedding = await generateEmbedding(question);
+        console.log('Generating embedding for question:', question);
+        let questionEmbedding;
+        try {
+            questionEmbedding = await generateEmbedding(question);
+            console.log('Embedding generated successfully, dimension:', questionEmbedding.length);
+        } catch (embeddingError) {
+            console.error('Error generating embedding:', embeddingError);
+            throw embeddingError;
+        }
         
         // Step 2: Construct the findNeighbors request
         const indexEndpoint = `projects/${PROJECT_ID}/locations/${LOCATION}/indexEndpoints/${VECTOR_SEARCH_ENDPOINT_ID}`;
         
-        // Build the restricts array for filtering
+        // Build the restricts array for filtering - using simple structure
         const restricts = [
             {
                 namespace: 'userId',
-                allowList: [userId]
+                allow: [userId]  // Try 'allow' instead of 'allowTokens'
             }
         ];
         
@@ -123,21 +131,28 @@ async function findRelevantDocuments(userId, question, collectionIds) {
         if (collectionIds && collectionIds.length > 0) {
             restricts.push({
                 namespace: 'collectionId',
-                allowList: collectionIds
+                allow: collectionIds
             });
         }
         
         const findNeighborsRequest = {
             endpoint: indexEndpoint,
-            deployedIndexId: DEPLOYED_INDEX_ID,  // MOVED TO TOP LEVEL
+            deployedIndexId: DEPLOYED_INDEX_ID,
+            returnFullDatapoint: false,  // Add this field
             queries: [{
                 datapoint: {
+                    datapointId: 'query-' + Date.now(),  // Add a unique datapoint ID
                     featureVector: questionEmbedding
                 },
                 neighborCount: 5,
                 restricts: restricts
             }]
         };
+        
+        // Add debugging
+        console.log('FindNeighbors request:', JSON.stringify(findNeighborsRequest, null, 2));
+        console.log('Embedding length:', questionEmbedding.length);
+        console.log('First few embedding values:', questionEmbedding.slice(0, 5));
         
         // Step 3: Query the vector database
         const [response] = await predictionServiceClient.findNeighbors(findNeighborsRequest);
@@ -164,8 +179,8 @@ async function findRelevantDocuments(userId, question, collectionIds) {
             let documentType = null;
             if (neighbor.datapoint.restricts) {
                 for (const restrict of neighbor.datapoint.restricts) {
-                    if (restrict.namespace === 'documentType' && restrict.allowList && restrict.allowList.length > 0) {
-                        documentType = restrict.allowList[0];
+                    if (restrict.namespace === 'documentType' && restrict.allow && restrict.allow.length > 0) {
+                        documentType = restrict.allow[0];
                         break;
                     }
                 }
@@ -214,6 +229,9 @@ async function findRelevantDocuments(userId, question, collectionIds) {
         
     } catch (error) {
         console.error('Error in findRelevantDocuments:', error);
+        console.error('Error details:', error.message);
+        console.error('Error code:', error.code);
+        console.error('Error metadata:', error.metadata);
         throw error;
     }
 }
