@@ -96,78 +96,128 @@ async function generateEmbedding(text) {
     }
 
 
-// In query-service-backend/index.js
-// PASTE THIS ENTIRE FUNCTION INTO THE HELPER FUNCTIONS SECTION
-
 /**
- * Finds relevant documents by querying the vector database.
+ * Finds relevant documents for a user's question using vector search and fetches them from Firestore.
+ * @param {string} userId - The ID of the user
+ * @param {string} question - The user's question
+ * @param {Array<string>} collectionIds - Array of collection IDs to filter by (can be empty)
+ * @returns {Promise<Array>} Array of relevant Firestore documents
  */
-async function findRelevantDocuments(userId, question, collectionIds = []) {
-    console.log(`Finding relevant documents for question: "${question}"`);
-
-    const questionEmbedding = await generateEmbedding(question);
-
-    const endpointPath = `projects/${PROJECT_ID}/locations/${LOCATION}/indexEndpoints/${VECTOR_SEARCH_ENDPOINT_ID}`;
-
-    const filters = [{ namespace: 'userId', allow: [userId] }];
-    if (collectionIds && collectionIds.length > 0) {
-        filters.push({ namespace: 'collectionId', allow: collectionIds });
-    }
-
-    const findNeighborsRequest = {
-        endpoint: endpointPath,
-        queries: [{
-            embedding: questionEmbedding,
-            neighborCount: 5,
-            restricts: filters,
-            deployedIndexId: DEPLOYED_INDEX_ID
-        }]
-    };
-
-    const [findNeighborsResponse] = await predictionServiceClient.findNeighbors(findNeighborsRequest);
-    const neighbors = findNeighborsResponse.nearestNeighbors[0]?.neighbors || [];
-
-    if (neighbors.length === 0) { return []; }
-
-    const docIdsByType = { transcripts: [], learning_packets: [] };
-    neighbors.forEach(n => {
-        const docId = n.datapoint.datapointId;
-        const typeRestriction = n.datapoint.restricts.find(r => r.namespace === 'documentType');
-        const docType = typeRestriction ? typeRestriction.allow[0] : null;
-
-        if (docType === 'transcript') {
-            docIdsByType.transcripts.push(docId);
-        } else if (docType === 'packet') {
-            docIdsByType.learning_packets.push(docId);
+async function findRelevantDocuments(userId, question, collectionIds) {
+    try {
+        // Step 1: Generate embedding for the question
+        const questionEmbedding = await generateEmbedding(question);
+        
+        // Step 2: Construct the findNeighbors request
+        const indexEndpoint = `projects/${PROJECT_ID}/locations/${LOCATION}/indexEndpoints/${VECTOR_SEARCH_ENDPOINT_ID}`;
+        
+        // Build the restricts array for filtering
+        const restricts = [
+            {
+                namespace: 'userId',
+                allowList: [userId]
+            }
+        ];
+        
+        // Add collectionId filter if collectionIds array is not empty
+        if (collectionIds && collectionIds.length > 0) {
+            restricts.push({
+                namespace: 'collectionId',
+                allowList: collectionIds
+            });
         }
-    });
-
-    console.log("Fetching documents from Firestore by type:", docIdsByType);
-    const docPromises = [];
-    const foundDocs = [];
-
-    if (docIdsByType.transcripts.length > 0) {
-        const transcriptsRef = db.collection(`users/${userId}/transcripts`);
-        const transcriptQuery = transcriptsRef.where(admin.firestore.FieldPath.documentId(), 'in', docIdsByType.transcripts);
-        docPromises.push(transcriptQuery.get());
-    }
-    if (docIdsByType.learning_packets.length > 0) {
-        const packetsRef = db.collection(`users/${userId}/learning_packets`);
-        const packetQuery = packetsRef.where(admin.firestore.FieldPath.documentId(), 'in', docIdsByType.learning_packets);
-        docPromises.push(packetQuery.get());
-    }
-
-    const querySnapshots = await Promise.all(docPromises);
-    querySnapshots.forEach(snapshot => {
-        snapshot.forEach(docSnap => {
-            if (docSnap.exists) {
-                foundDocs.push({ id: docSnap.id, ...docSnap.data() });
+        
+        const findNeighborsRequest = {
+            endpoint: indexEndpoint,
+            queries: [{
+                datapoint: {
+                    featureVector: questionEmbedding
+                },
+                neighborCount: 5,
+                deployedIndexId: DEPLOYED_INDEX_ID,
+                restricts: restricts
+            }]
+        };
+        
+        // Step 3: Query the vector database
+        const [response] = await predictionServiceClient.findNeighbors(findNeighborsRequest);
+        
+        // Step 4: Parse the response to get document IDs and types
+        if (!response.nearestNeighbors || response.nearestNeighbors.length === 0 || 
+            !response.nearestNeighbors[0].neighbors) {
+            return [];
+        }
+        
+        const neighbors = response.nearestNeighbors[0].neighbors;
+        if (!neighbors || neighbors.length === 0) {
+            return [];
+        }
+        
+        // Group document IDs by their type for efficient batch fetching
+        const transcriptIds = [];
+        const learningPacketIds = [];
+        
+        neighbors.forEach(neighbor => {
+            const datapointId = neighbor.datapoint.datapointId;
+            
+            // Extract documentType from the restricts metadata
+            let documentType = null;
+            if (neighbor.datapoint.restricts) {
+                for (const restrict of neighbor.datapoint.restricts) {
+                    if (restrict.namespace === 'documentType' && restrict.allowList && restrict.allowList.length > 0) {
+                        documentType = restrict.allowList[0];
+                        break;
+                    }
+                }
+            }
+            
+            // Group IDs by document type
+            if (documentType === 'transcript') {
+                transcriptIds.push(datapointId);
+            } else if (documentType === 'learning_packet') {
+                learningPacketIds.push(datapointId);
             }
         });
-    });
-
-    return foundDocs;
+        
+        // Step 5: Fetch documents from Firestore using batch queries
+        const allDocuments = [];
+        
+        // Fetch transcripts if any
+        if (transcriptIds.length > 0) {
+            const transcriptsSnapshot = await db
+                .collection('users')
+                .doc(userId)
+                .collection('transcripts')
+                .where(admin.firestore.FieldPath.documentId(), 'in', transcriptIds)
+                .get();
+            
+            transcriptsSnapshot.forEach(doc => {
+                allDocuments.push({ id: doc.id, ...doc.data() });
+            });
+        }
+        
+        // Fetch learning packets if any
+        if (learningPacketIds.length > 0) {
+            const learningPacketsSnapshot = await db
+                .collection('users')
+                .doc(userId)
+                .collection('learning_packets')
+                .where(admin.firestore.FieldPath.documentId(), 'in', learningPacketIds)
+                .get();
+            
+            learningPacketsSnapshot.forEach(doc => {
+                allDocuments.push({ id: doc.id, ...doc.data() });
+            });
+        }
+        
+        return allDocuments;
+        
+    } catch (error) {
+        console.error('Error in findRelevantDocuments:', error);
+        throw error;
+    }
 }
+   
 
 /**
  * Generates a final, synthesized answer based on the user's question and retrieved documents.
