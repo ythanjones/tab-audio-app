@@ -7,16 +7,15 @@ const admin = require('firebase-admin');
 const { PredictionServiceClient } = require('@google-cloud/aiplatform');
 
 // --- Configuration ---
-// IMPORTANT: You must replace these placeholders with your actual project details.
 const PROJECT_ID = 'tab-audio-app'; 
 const LOCATION = 'europe-west2'; 
 const PUBLISHER = 'google';
 const EMBEDDING_MODEL = 'gemini-embedding-001';
 
 // You will get these values after creating the index and endpoint in the Google Cloud Console.
-const VECTOR_SEARCH_INDEX_ID = '7989579253001748480';
-const VECTOR_SEARCH_ENDPOINT_ID = '6958254938333904896';
-// --------------------
+const VECTOR_SEARCH_INDEX_ID = '7989579253001748480';           // Base index ID (for upserts)
+const VECTOR_SEARCH_ENDPOINT_ID = '6958254938333904896';        // Endpoint ID  
+const DEPLOYED_INDEX_ID = 'tab_audio_app_1751241281157';       // ✅ CORRECT deployed index ID for queries
 
 admin.initializeApp({ projectId: 'tab-audio-app' });
 

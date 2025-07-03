@@ -8,15 +8,15 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { PredictionServiceClient } = require('@google-cloud/aiplatform');
 
 // --- Configuration ---
-const PORT = process.env.PORT || 8080;
 const PROJECT_ID = 'tab-audio-app'; 
 const LOCATION = 'europe-west2'; 
 const PUBLISHER = 'google';
-const EMBEDDING_MODEL = 'gemini-embedding-001'; // Replaced retired 'textembedding-gecko@003'
+const EMBEDDING_MODEL = 'gemini-embedding-001';
 
-// You will need to provide these IDs from your Vertex AI setup
-const VECTOR_SEARCH_ENDPOINT_ID = '6958254938333904896'; 
-const DEPLOYED_INDEX_ID = '7989579253001748480'; // The ID of the DEPLOYED index on the endpoint
+// You will get these values after creating the index and endpoint in the Google Cloud Console.
+const VECTOR_SEARCH_INDEX_ID = '7989579253001748480';           // Base index ID (for upserts)
+const VECTOR_SEARCH_ENDPOINT_ID = '6958254938333904896';        // Endpoint ID  
+const DEPLOYED_INDEX_ID = 'tab_audio_app_1751241281157';       // ✅ CORRECT deployed index ID for queries
 
 // Initialize Firebase and AI Clients
 admin.initializeApp();
