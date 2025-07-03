@@ -441,85 +441,138 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // =================================================================
-    // DEBUG MODAL - IMPROVED
-    // =================================================================
+// DEBUG MODAL - FIXED VERSION
+// =================================================================
+
+function openDebugModal() {
+    LoggingService.logEvent('debug_modal_opened_library');
+    const logData = LoggingService.getLog();
+    const logText = JSON.stringify(logData, null, 2);
     
-    function openDebugModal() {
-        LoggingService.logEvent('debug_modal_opened_library');
-        const logData = LoggingService.getLog();
-        const logText = JSON.stringify(logData, null, 2);
-        
-        const reportHtml = `
-            <div style="position: relative;">
-                <pre id="debugLogContent" class="bg-slate-900 p-3 rounded-md text-xs whitespace-pre-wrap" style="max-height: 60vh; overflow-y: auto; user-select: text; cursor: text;"><code>${logText}</code></pre>
-                <div class="mt-4 flex gap-2">
-                    <button id="copyLogBtn" class="btn btn-secondary">Copy to Clipboard</button>
-                    <button id="selectAllBtn" class="btn btn-secondary">Select All</button>
-                </div>
-                <div id="copyFeedback" class="mt-2 text-green-400 hidden">Log copied to clipboard!</div>
+    // Create a data URL for JSON download
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(logText);
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+    const filename = `debug-log-${timestamp}.json`;
+    
+    const reportHtml = `
+        <div style="position: relative;">
+            <div class="mb-4 p-3 bg-slate-700 rounded-md">
+                <p class="text-sm text-slate-300 mb-2">Debug log with ${logData.length} entries. You can copy, select, or download the log data.</p>
             </div>
-        `;
-        openModal("Session Debug Log", reportHtml);
-        
-        // Copy to clipboard functionality
-        document.getElementById('copyLogBtn').addEventListener('click', () => {
-            navigator.clipboard.writeText(logText).then(() => {
-                const feedback = document.getElementById('copyFeedback');
-                feedback.classList.remove('hidden');
-                setTimeout(() => feedback.classList.add('hidden'), 2000);
-                LoggingService.logEvent('debug_log_copied');
-            }).catch(err => {
-                console.error('Failed to copy log', err);
-                alert('Failed to copy log. You can manually select and copy the text.');
-                LoggingService.logEvent('debug_log_copy_failed', { error: err.message });
-            });
-        });
-        
-        // Select all functionality
-        document.getElementById('selectAllBtn').addEventListener('click', () => {
+            <pre id="debugLogContent" class="bg-slate-900 p-4 rounded-md text-xs font-mono" style="max-height: 50vh; overflow-y: auto; user-select: text; cursor: text; white-space: pre-wrap; word-break: break-all;">${escapeHtml(logText)}</pre>
+            <div class="mt-4 flex gap-2 flex-wrap">
+                <button id="copyLogBtn" class="btn btn-secondary">📋 Copy to Clipboard</button>
+                <button id="selectAllBtn" class="btn btn-secondary">✓ Select All Text</button>
+                <a id="downloadLogBtn" href="${dataStr}" download="${filename}" class="btn btn-secondary inline-flex items-center">💾 Download JSON</a>
+            </div>
+            <div id="copyFeedback" class="mt-2 text-green-400 hidden">✓ Log copied to clipboard!</div>
+        </div>
+    `;
+    
+    openModal("Session Debug Log", reportHtml);
+    
+    // Copy to clipboard functionality
+    document.getElementById('copyLogBtn').addEventListener('click', () => {
+        navigator.clipboard.writeText(logText).then(() => {
+            const feedback = document.getElementById('copyFeedback');
+            feedback.classList.remove('hidden');
+            setTimeout(() => feedback.classList.add('hidden'), 2000);
+            LoggingService.logEvent('debug_log_copied');
+        }).catch(err => {
+            console.error('Failed to copy log', err);
+            // Fallback: Select all text for manual copying
             const logContent = document.getElementById('debugLogContent');
             const range = document.createRange();
             range.selectNodeContents(logContent);
             const selection = window.getSelection();
             selection.removeAllRanges();
             selection.addRange(range);
+            alert('Clipboard access failed. The text has been selected - press Ctrl+C or Cmd+C to copy.');
+            LoggingService.logEvent('debug_log_copy_failed', { error: err.message });
         });
+    });
+    
+    // Select all functionality
+    document.getElementById('selectAllBtn').addEventListener('click', () => {
+        const logContent = document.getElementById('debugLogContent');
+        const range = document.createRange();
+        range.selectNodeContents(logContent);
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+        
+        // Also focus the element to make selection more visible
+        logContent.focus();
+    });
+    
+    // Log download action
+    document.getElementById('downloadLogBtn').addEventListener('click', () => {
+        LoggingService.logEvent('debug_log_downloaded', { filename });
+    });
+}
+
+// Helper function to escape HTML
+function escapeHtml(unsafe) {
+    return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+    
+function openModal(title, content) {
+    // Remove any existing modal first
+    const existingModal = document.getElementById('modal-backdrop');
+    if (existingModal) {
+        existingModal.remove();
     }
     
-    function openModal(title, content) {
-        // Remove any existing modal first
-        const existingModal = document.getElementById('modal-backdrop');
-        if (existingModal) {
-            existingModal.remove();
-        }
-        
-        // Create modal with better styling for debug content
-        const modalHtml = `
-            <div id="modal-backdrop" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50" style="backdrop-filter: blur(4px);">
-                <div id="modal-content" class="modal-content-area bg-slate-800 p-6 rounded-lg max-w-4xl w-full" style="max-height: 90vh; display: flex; flex-direction: column;">
-                    <div class="flex justify-between items-center mb-4 flex-shrink-0">
-                        <h2 class="text-2xl font-semibold text-slate-100">${title}</h2>
-                        <button id="modal-close" class="text-slate-400 hover:text-slate-100 text-3xl leading-none">&times;</button>
-                    </div>
-                    <div class="text-slate-300 overflow-auto flex-grow">${content}</div>
+    // Create modal WITHOUT backdrop blur that was causing issues
+    const modalHtml = `
+        <div id="modal-backdrop" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50">
+            <div id="modal-content" class="bg-slate-800 rounded-lg w-full max-w-4xl" style="max-height: 85vh; display: flex; flex-direction: column;">
+                <div class="flex justify-between items-center p-6 border-b border-slate-700 flex-shrink-0">
+                    <h2 class="text-2xl font-semibold text-slate-100">${title}</h2>
+                    <button id="modal-close" class="text-slate-400 hover:text-slate-100 text-3xl leading-none p-2">&times;</button>
                 </div>
+                <div class="p-6 overflow-y-auto flex-grow text-slate-300">${content}</div>
             </div>
-        `;
-        
-        document.body.insertAdjacentHTML('beforeend', modalHtml);
-        
-        const backdrop = document.getElementById('modal-backdrop');
-        const closeBtn = document.getElementById('modal-close');
-        
-        const closeModal = () => {
-            backdrop.remove();
-        };
-        
-        closeBtn.addEventListener('click', closeModal);
-        backdrop.addEventListener('click', (e) => {
-            if (e.target === backdrop) closeModal();
-        });
-    }
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    const backdrop = document.getElementById('modal-backdrop');
+    const closeBtn = document.getElementById('modal-close');
+    const modalContent = document.getElementById('modal-content');
+    
+    const closeModal = () => {
+        backdrop.remove();
+    };
+    
+    closeBtn.addEventListener('click', closeModal);
+    
+    // Only close when clicking the backdrop, not the modal content
+    backdrop.addEventListener('click', (e) => {
+        if (e.target === backdrop) {
+            closeModal();
+        }
+    });
+    
+    // Prevent clicks inside modal from closing it
+    modalContent.addEventListener('click', (e) => {
+        e.stopPropagation();
+    });
+    
+    // ESC key to close
+    document.addEventListener('keydown', function escHandler(e) {
+        if (e.key === 'Escape') {
+            closeModal();
+            document.removeEventListener('keydown', escHandler);
+        }
+    });
+}
 
     // =================================================================
     // EVENT LISTENERS
