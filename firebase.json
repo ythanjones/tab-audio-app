@@ -27,6 +27,28 @@
         "firebase-debug.*.log"
       ],
       "runtime": "nodejs18"
+    },
+    {
+      "source": "embedding-service-function",
+      "codebase": "embedding-service",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log"
+      ],
+      "runtime": "nodejs18"
+    },
+    {
+      "source": "agent-backend",
+      "codebase": "agent-backend", 
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log"
+      ],
+      "runtime": "nodejs18"
     }
   ]
 }

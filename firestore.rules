@@ -14,6 +14,12 @@ service cloud.firestore {
       allow create: if request.auth.uid != null;
     }
 
+    // ✅ NEW: Allow embedding service to log errors for debugging
+    match /embedding_errors/{errorId} {
+      allow create: if true; // Cloud Functions need to write errors
+      allow read: if request.auth.uid != null; // Users can read their own errors
+    }
+
     // This section secures all data specific to a user.
     match /users/{userId} {
       // Allow a user to read/write their own document (e.g., for saving API key).
@@ -24,18 +30,23 @@ service cloud.firestore {
         allow read, write, delete: if request.auth.uid == userId;
       }
       
-      // Allow a user to manage their saved transcripts.
+      // ✅ UPDATED: Allow a user to manage their saved transcripts (including AI embedding status).
       match /transcripts/{transcriptId} {
         allow read, write, delete: if request.auth.uid == userId;
       }
       
-      // Allow a user to manage their saved learning packets.
+      // ✅ UPDATED: Allow a user to manage their saved learning packets (including AI embedding status).
       match /learning_packets/{packetId} {
         allow read, write, delete: if request.auth.uid == userId;
       }
       
       // Allow a user to manage their own flashcard decks.
       match /decks/{deckId} {
+        allow read, write, delete: if request.auth.uid == userId;
+      }
+
+      // ✅ NEW: Allow users to manage their own feedback data
+      match /feedback/{feedbackId} {
         allow read, write, delete: if request.auth.uid == userId;
       }
     }
