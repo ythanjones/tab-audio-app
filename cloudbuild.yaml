@@ -6,7 +6,7 @@ steps:
   - name: 'gcr.io/cloud-builders/docker'
     args: [
       'build',
-      '-t', 'gcr.io/$PROJECT_ID/backend-service:$COMMIT_SHA',
+      '-t', 'gcr.io/$PROJECT_ID/backend-service:$BUILD_ID',
       '-t', 'gcr.io/$PROJECT_ID/backend-service:latest',
       '-f', 'backend/Dockerfile',
       './backend'
@@ -17,7 +17,7 @@ steps:
   - name: 'gcr.io/cloud-builders/docker'
     args: [
       'build',
-      '-t', 'gcr.io/$PROJECT_ID/agent-backend-service:$COMMIT_SHA',
+      '-t', 'gcr.io/$PROJECT_ID/agent-backend-service:$BUILD_ID',
       '-t', 'gcr.io/$PROJECT_ID/agent-backend-service:latest',
       '-f', 'agent-backend/Dockerfile', 
       './agent-backend'
@@ -26,13 +26,13 @@ steps:
 
   # Step 3: Push Backend Service Image
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'gcr.io/$PROJECT_ID/backend-service:$COMMIT_SHA']
+    args: ['push', 'gcr.io/$PROJECT_ID/backend-service:$BUILD_ID']
     waitFor: ['build-backend']
     id: 'push-backend'
 
   # Step 4: Push Agent Backend Service Image
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'gcr.io/$PROJECT_ID/agent-backend-service:$COMMIT_SHA']
+    args: ['push', 'gcr.io/$PROJECT_ID/agent-backend-service:$BUILD_ID']
     waitFor: ['build-agent-backend'] 
     id: 'push-agent-backend'
 
@@ -41,7 +41,7 @@ steps:
     entrypoint: 'gcloud'
     args: [
       'run', 'deploy', 'backend-service',
-      '--image', 'gcr.io/$PROJECT_ID/backend-service:$COMMIT_SHA',
+      '--image', 'gcr.io/$PROJECT_ID/backend-service:$BUILD_ID',
       '--platform', 'managed',
       '--region', 'europe-west2',
       '--allow-unauthenticated',
@@ -60,7 +60,7 @@ steps:
     entrypoint: 'gcloud'
     args: [
       'run', 'deploy', 'agent-backend-service',
-      '--image', 'gcr.io/$PROJECT_ID/agent-backend-service:$COMMIT_SHA',
+      '--image', 'gcr.io/$PROJECT_ID/agent-backend-service:$BUILD_ID',
       '--platform', 'managed',
       '--region', 'europe-west2',
       '--allow-unauthenticated',
@@ -84,8 +84,7 @@ timeout: '1200s'
 
 # Images to be pushed to Container Registry
 images:
-  - 'gcr.io/$PROJECT_ID/backend-service:$COMMIT_SHA'
+  - 'gcr.io/$PROJECT_ID/backend-service:$BUILD_ID'
   - 'gcr.io/$PROJECT_ID/backend-service:latest'
-  - 'gcr.io/$PROJECT_ID/agent-backend-service:$COMMIT_SHA' 
+  - 'gcr.io/$PROJECT_ID/agent-backend-service:$BUILD_ID' 
   - 'gcr.io/$PROJECT_ID/agent-backend-service:latest'
-  
