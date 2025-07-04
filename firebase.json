@@ -6,7 +6,7 @@
     "public": "public",
     "ignore": [
       "firebase.json",
-      "**/.*",
+      "**/.*", 
       "**/node_modules/**"
     ],
     "rewrites": [
@@ -23,10 +23,10 @@
       "ignore": [
         "node_modules",
         ".git",
-        "firebase-debug.log",
+        "firebase-debug.log", 
         "firebase-debug.*.log"
       ],
-      "runtime": "nodejs18"
+      "runtime": "nodejs20"
     },
     {
       "source": "embedding-service-function",
@@ -37,18 +37,18 @@
         "firebase-debug.log",
         "firebase-debug.*.log"
       ],
-      "runtime": "nodejs18"
+      "runtime": "nodejs20"
     },
     {
       "source": "agent-backend",
-      "codebase": "agent-backend", 
+      "codebase": "agent-backend",
       "ignore": [
-        "node_modules",
+        "node_modules", 
         ".git",
         "firebase-debug.log",
         "firebase-debug.*.log"
       ],
-      "runtime": "nodejs18"
+      "runtime": "nodejs20"
     }
   ]
 }
