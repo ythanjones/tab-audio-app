@@ -1,6 +1,6 @@
-// =================================================================
-// LIBRARY PAGE SCRIPT (v2.3 - Chat Enabled)
-// =================================================================
+// File: public/library.js
+// UPDATED VERSION - AI Knowledge Base Controls
+
 import LoggingService from './loggingService.js';
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js";
 import { 
@@ -21,7 +21,7 @@ import {
     serverTimestamp
 } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-firestore.js";
 
-// Your web app's Firebase configuration
+// Firebase configuration
 const firebaseConfig = {
     apiKey: "AIzaSyCH7jBG_iSTFAYrWEtazEvlXk2ZC413AGo",
     authDomain: "tab-audio-app.firebaseapp.com",
@@ -36,9 +36,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Constants & State ---
     const QUERY_SERVICE_URL = 'https://query-service-715569829205.europe-west2.run.app/chat';
+    const EMBEDDING_SERVICE_URL = 'https://europe-west2-tab-audio-app.cloudfunctions.net/addToKnowledgeBase';
+    const REMOVE_EMBEDDING_URL = 'https://europe-west2-tab-audio-app.cloudfunctions.net/removeFromKnowledgeBase';
+    
     let currentUser = null;
     let db, auth;
-    let activeCollectionId = 'all'; // Default to all collections
+    let activeCollectionId = 'all';
+    let selectedItems = new Set(); // Track selected items for batch operations
 
     // --- DOM ELEMENT REFERENCES ---
     const collectionsListEl = document.getElementById('collectionsList');
@@ -55,6 +59,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const chatContainer = document.getElementById('chat-container');
     const viewToggleButton = document.getElementById('viewToggleButton');
     const debugButton = document.getElementById('debugButton');
+    
+    // New AI Knowledge controls
+    const selectAllBtn = document.getElementById('selectAllBtn');
+    const addToAIBtn = document.getElementById('addToAIBtn');
+    const removeFromAIBtn = document.getElementById('removeFromAIBtn');
+    const selectionInfo = document.getElementById('selectionInfo');
+    const bulkActionsPanel = document.getElementById('bulkActionsPanel');
 
     // --- INITIALIZATION ---
     try {
@@ -72,41 +83,41 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 currentUser = null;
                 LoggingService.logEvent('auth_state_changed', { status: 'logged_out' });
-                window.location.href = 'index.html';
+                window.location.href = '/';
             }
         });
     } catch (error) {
-        console.error("Firebase Initialization Error on Library Page:", error);
-        LoggingService.logEvent('firebase_init_error', { error: error.message, stack: error.stack });
-        contentPanel.innerHTML = '<h1>Error: Could not initialize application.</h1>';
+        console.error('Firebase initialization failed:', error);
+        LoggingService.logEvent('firebase_init_error', { error: error.message });
     }
 
-
     // =================================================================
-    // CORE LOGIC
+    // LIBRARY LOADING LOGIC
     // =================================================================
 
     async function loadUserLibrary() {
         if (!currentUser) return;
         LoggingService.logEvent('library_load_attempt', { userId: currentUser.uid });
-        collectionsListEl.innerHTML = `
-            <li class="collection-item back-button">
-                <a href="index.html" title="Back to Main App">
-                    <i data-feather="arrow-left"></i><span>Back to Main App</span>
-                </a>
-            </li>
-        `;
-        contentPanel.classList.add('hidden');
-
-        const collectionsRef = collection(db, "users", currentUser.uid, "collections");
-        const q = query(collectionsRef, orderBy("createdAt", "desc"));
         
         try {
+            const collectionsRef = collection(db, "users", currentUser.uid, "collections");
+            const q = query(collectionsRef, orderBy("createdAt", "desc"));
             const querySnapshot = await getDocs(q);
+
+            collectionsListEl.innerHTML = '';
             
+            // Add "All Collections" option
+            const allCollectionsLi = document.createElement('li');
+            allCollectionsLi.className = 'collection-item is-active';
+            allCollectionsLi.innerHTML = `<a href="#"><i data-feather="layers"></i><span>All Collections</span></a>`;
+            allCollectionsLi.onclick = (e) => {
+                e.preventDefault();
+                loadAllCollections();
+            };
+            collectionsListEl.appendChild(allCollectionsLi);
+
             if (querySnapshot.empty) {
-                LoggingService.logEvent('library_load_success', { collections_found: 0 });
-                collectionsListEl.innerHTML += '<li class="p-2 text-slate-500 text-sm">No collections yet. Click "New Collection" to start.</li>';
+                collectionsListEl.innerHTML += '<li class="px-3 py-2 text-slate-400 italic">No collections yet. Click "New Collection" to start.</li>';
                 currentCollectionTitleEl.textContent = "Welcome";
                 itemsListEl.innerHTML = '';
                 emptyStateEl.classList.remove('hidden');
@@ -123,7 +134,7 @@ document.addEventListener('DOMContentLoaded', () => {
             collections.forEach(col => renderCollection(col));
 
             if (collections.length > 0) {
-                loadCollectionItems(collections[0].id, collections[0].name);
+                loadAllCollections(); // Start with all collections view
             }
             contentPanel.classList.remove('hidden');
 
@@ -156,106 +167,143 @@ document.addEventListener('DOMContentLoaded', () => {
         feather.replace();
     }
 
+    async function loadAllCollections() {
+        if (!currentUser) return;
+        
+        activeCollectionId = 'all';
+        updateActiveCollection('all');
+        currentCollectionTitleEl.textContent = "All Collections";
+        
+        try {
+            // Load all transcripts
+            const transcriptsRef = collection(db, "users", currentUser.uid, "transcripts");
+            const tQuery = query(transcriptsRef, orderBy("createdAt", "desc"));
+            const tSnapshot = await getDocs(tQuery);
+            
+            // Load all packets
+            const packetsRef = collection(db, "users", currentUser.uid, "learning_packets");
+            const pQuery = query(packetsRef, orderBy("createdAt", "desc"));
+            const pSnapshot = await getDocs(pQuery);
+            
+            const allItems = [];
+            
+            tSnapshot.forEach(doc => {
+                allItems.push({ id: doc.id, type: 'transcript', ...doc.data() });
+            });
+            
+            pSnapshot.forEach(doc => {
+                allItems.push({ id: doc.id, type: 'packet', ...doc.data() });
+            });
+            
+            // Sort by creation time
+            allItems.sort((a, b) => {
+                const aTime = a.createdAt?.seconds || 0;
+                const bTime = b.createdAt?.seconds || 0;
+                return bTime - aTime;
+            });
+            
+            renderItems(allItems);
+            
+        } catch (error) {
+            console.error("Error loading all collections:", error);
+            itemsListEl.innerHTML = '<p class="text-red-400">Error loading items.</p>';
+        }
+    }
+
     async function loadCollectionItems(collectionId, collectionName) {
         if (!currentUser) return;
+        
         activeCollectionId = collectionId;
+        updateActiveCollection(collectionId);
+        currentCollectionTitleEl.textContent = collectionName;
+        
         LoggingService.logEvent('collection_items_load_attempt', { 
-            collectionId,
-            collectionName,
+            collectionId, 
+            collectionName, 
             userId: currentUser.uid 
         });
 
-        currentCollectionTitleEl.textContent = collectionName;
-        document.querySelectorAll('.collection-item').forEach(item => {
-            item.classList.toggle('is-active', item.dataset.id === collectionId);
-        });
-
-        itemsListEl.innerHTML = '<li>Loading items...</li>';
-        emptyStateEl.classList.add('hidden');
-
         try {
-            const items = [];
-            
             // Load transcripts
             LoggingService.logEvent('loading_transcripts', { collectionId });
             const transcriptsRef = collection(db, "users", currentUser.uid, "transcripts");
-            const tq = query(transcriptsRef, where("collectionId", "==", collectionId), orderBy("createdAt", "desc"));
-            const tSnapshot = await getDocs(tq);
-            
-            LoggingService.logEvent('transcripts_loaded', { 
-                collectionId, 
-                count: tSnapshot.size 
-            });
-            
-            tSnapshot.forEach(doc => {
-                const data = doc.data();
-                items.push({ 
-                    id: doc.id, 
-                    type: 'transcript', 
-                    ...data 
-                });
-            });
+            const tQuery = query(transcriptsRef, where("collectionId", "==", collectionId), orderBy("createdAt", "desc"));
+            const tSnapshot = await getDocs(tQuery);
+            LoggingService.logEvent('transcripts_loaded', { collectionId, count: tSnapshot.size });
 
             // Load learning packets
             LoggingService.logEvent('loading_packets', { collectionId });
             const packetsRef = collection(db, "users", currentUser.uid, "learning_packets");
-            const pq = query(packetsRef, where("collectionId", "==", collectionId), orderBy("createdAt", "desc"));
-            const pSnapshot = await getDocs(pq);
+            const pQuery = query(packetsRef, where("collectionId", "==", collectionId), orderBy("createdAt", "desc"));
+            const pSnapshot = await getDocs(pQuery);
+            LoggingService.logEvent('packets_loaded', { collectionId, count: pSnapshot.size });
+
+            const allItems = [];
             
-            LoggingService.logEvent('packets_loaded', { 
-                collectionId, 
-                count: pSnapshot.size 
+            tSnapshot.forEach(doc => {
+                allItems.push({ id: doc.id, type: 'transcript', ...doc.data() });
             });
             
             pSnapshot.forEach(doc => {
-                const data = doc.data();
-                items.push({ 
-                    id: doc.id, 
-                    type: 'packet', 
-                    ...data 
-                });
+                allItems.push({ id: doc.id, type: 'packet', ...doc.data() });
             });
 
-            // Sort items by creation date
-            items.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
-
-            itemsListEl.innerHTML = ''; 
             LoggingService.logEvent('collection_items_load_success', { 
                 collectionId, 
-                total_items: items.length,
+                total_items: allItems.length,
                 transcripts: tSnapshot.size,
-                packets: pSnapshot.size
-            });
-
-            if (items.length === 0) {
-                emptyStateEl.classList.remove('hidden');
-            } else {
-                items.forEach(item => renderItem(item));
-            }
-
-        } catch (error) {
-            console.error(`Error loading items for collection ${collectionId}:`, error);
-            LoggingService.logEvent('collection_items_load_failure', { 
-                collectionId, 
-                error: error.message,
-                code: error.code,
-                stack: error.stack
+                packets: pSnapshot.size 
             });
             
-            // More detailed error message
-            itemsListEl.innerHTML = `
-                <li class="text-red-400">
-                    Error loading items: ${error.message || 'Unknown error'}
-                    <br><small class="text-red-300">Check console for details</small>
-                </li>
-            `;
+            renderItems(allItems);
+
+        } catch (error) {
+            console.error("Error loading collection items:", error);
+            LoggingService.logEvent('collection_items_load_failure', { 
+                collectionId,
+                error: error.message,
+                code: error.code 
+            });
+            itemsListEl.innerHTML = '<p class="text-red-400">Error loading items.</p>';
         }
+    }
+
+    function updateActiveCollection(collectionId) {
+        // Update visual state of collection list
+        document.querySelectorAll('.collection-item').forEach(item => {
+            item.classList.remove('is-active');
+        });
+        
+        if (collectionId === 'all') {
+            document.querySelector('.collection-item').classList.add('is-active');
+        } else {
+            const activeItem = document.querySelector(`[data-id="${collectionId}"]`);
+            if (activeItem) activeItem.classList.add('is-active');
+        }
+    }
+
+    function renderItems(items) {
+        selectedItems.clear();
+        updateBulkActionsPanel();
+        
+        if (items.length === 0) {
+            itemsListEl.innerHTML = '';
+            emptyStateEl.classList.remove('hidden');
+            return;
+        }
+
+        emptyStateEl.classList.add('hidden');
+        itemsListEl.innerHTML = '';
+
+        items.forEach(item => renderItem(item));
+        feather.replace();
     }
 
     function renderItem(itemData) {
         const itemDiv = document.createElement('div');
         itemDiv.className = 'library-item';
         itemDiv.dataset.id = itemData.id;
+        itemDiv.dataset.type = itemData.type;
 
         let iconType, badgeClass, badgeText;
         if (itemData.type === 'transcript') {
@@ -268,18 +316,32 @@ document.addEventListener('DOMContentLoaded', () => {
             badgeText = 'Learning Packet';
         }
 
+        // Check if item is embedded in AI
+        const isEmbedded = itemData.embeddedInAI === true;
+        const aiIndicator = isEmbedded ? 
+            '<i data-feather="brain" class="ai-indicator embedded" title="Available for AI Chat"></i>' : 
+            '<i data-feather="brain" class="ai-indicator not-embedded" title="Not in AI Knowledge Base"></i>';
+
         itemDiv.innerHTML = `
+            <div class="item-selector">
+                <input type="checkbox" class="item-checkbox" data-id="${itemData.id}" data-type="${itemData.type}">
+            </div>
             <div class="item-main">
                 <i data-feather="${iconType}" class="item-icon"></i>
                 <div class="item-details">
                     <p class="item-title truncate" title="${itemData.title}">${itemData.title}</p>
                     <span class="item-badge ${badgeClass}">${badgeText}</span>
                 </div>
+                ${aiIndicator}
             </div>
             <div class="item-actions">
                 <button class="btn-icon btn-delete-item" title="Delete"><i data-feather="x"></i></button>
             </div>
         `;
+
+        // Add event listeners
+        const checkbox = itemDiv.querySelector('.item-checkbox');
+        checkbox.addEventListener('change', handleItemSelection);
 
         itemDiv.querySelector('.btn-delete-item').onclick = (e) => {
             e.stopPropagation();
@@ -287,9 +349,229 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         itemsListEl.appendChild(itemDiv);
-        feather.replace();
     }
-    
+
+    // =================================================================
+    // AI KNOWLEDGE BASE CONTROLS
+    // =================================================================
+
+    function handleItemSelection(e) {
+        const checkbox = e.target;
+        const itemId = checkbox.dataset.id;
+        const itemType = checkbox.dataset.type;
+        
+        if (checkbox.checked) {
+            selectedItems.add(`${itemType}:${itemId}`);
+        } else {
+            selectedItems.delete(`${itemType}:${itemId}`);
+        }
+        
+        updateBulkActionsPanel();
+    }
+
+    function updateBulkActionsPanel() {
+        const count = selectedItems.size;
+        
+        if (count === 0) {
+            bulkActionsPanel.classList.add('hidden');
+            return;
+        }
+        
+        bulkActionsPanel.classList.remove('hidden');
+        selectionInfo.textContent = `${count} item${count === 1 ? '' : 's'} selected`;
+        
+        // Check if any selected items are already embedded
+        const hasEmbedded = Array.from(selectedItems).some(item => {
+            const [type, id] = item.split(':');
+            const element = document.querySelector(`[data-id="${id}"][data-type="${type}"]`);
+            return element && element.closest('.library-item').querySelector('.ai-indicator.embedded');
+        });
+        
+        // Check if any selected items are not embedded
+        const hasNotEmbedded = Array.from(selectedItems).some(item => {
+            const [type, id] = item.split(':');
+            const element = document.querySelector(`[data-id="${id}"][data-type="${type}"]`);
+            return element && element.closest('.library-item').querySelector('.ai-indicator.not-embedded');
+        });
+        
+        addToAIBtn.disabled = !hasNotEmbedded;
+        removeFromAIBtn.disabled = !hasEmbedded;
+    }
+
+    async function addSelectedToAI() {
+        if (selectedItems.size === 0) return;
+        
+        addToAIBtn.disabled = true;
+        addToAIBtn.innerHTML = '<i data-feather="loader" class="animate-spin"></i> Adding...';
+        
+        try {
+            // Group by document type
+            const transcripts = [];
+            const packets = [];
+            
+            selectedItems.forEach(item => {
+                const [type, id] = item.split(':');
+                if (type === 'transcript') {
+                    transcripts.push(id);
+                } else if (type === 'packet') {
+                    packets.push(id);
+                }
+            });
+            
+            const results = [];
+            
+            // Process transcripts
+            if (transcripts.length > 0) {
+                const response = await fetch(EMBEDDING_SERVICE_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userId: currentUser.uid,
+                        documentIds: transcripts,
+                        documentType: 'transcript'
+                    })
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    results.push(...result.results);
+                }
+            }
+            
+            // Process packets
+            if (packets.length > 0) {
+                const response = await fetch(EMBEDDING_SERVICE_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userId: currentUser.uid,
+                        documentIds: packets,
+                        documentType: 'packet'
+                    })
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    results.push(...result.results);
+                }
+            }
+            
+            const successCount = results.filter(r => r.success).length;
+            const failCount = results.filter(r => !r.success).length;
+            
+            // Update UI
+            selectedItems.clear();
+            document.querySelectorAll('.item-checkbox').forEach(cb => cb.checked = false);
+            
+            // Reload current view to show updated AI indicators
+            if (activeCollectionId === 'all') {
+                loadAllCollections();
+            } else {
+                const collectionName = currentCollectionTitleEl.textContent;
+                loadCollectionItems(activeCollectionId, collectionName);
+            }
+            
+            // Show success message
+            if (successCount > 0) {
+                showToast(`Successfully added ${successCount} item${successCount === 1 ? '' : 's'} to AI Knowledge Base!`, 'success');
+            }
+            if (failCount > 0) {
+                showToast(`Failed to add ${failCount} item${failCount === 1 ? '' : 's'}`, 'error');
+            }
+            
+        } catch (error) {
+            console.error('Error adding to AI:', error);
+            showToast('Error adding items to AI Knowledge Base', 'error');
+        } finally {
+            addToAIBtn.disabled = false;
+            addToAIBtn.innerHTML = '<i data-feather="brain"></i> Add to AI Knowledge';
+            updateBulkActionsPanel();
+            feather.replace();
+        }
+    }
+
+    async function removeSelectedFromAI() {
+        if (selectedItems.size === 0) return;
+        
+        if (!confirm('Remove selected items from AI Knowledge Base?')) return;
+        
+        removeFromAIBtn.disabled = true;
+        removeFromAIBtn.innerHTML = '<i data-feather="loader" class="animate-spin"></i> Removing...';
+        
+        try {
+            const documentIds = Array.from(selectedItems).map(item => item.split(':')[1]);
+            
+            const response = await fetch(REMOVE_EMBEDDING_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    userId: currentUser.uid,
+                    documentIds: documentIds
+                })
+            });
+            
+            if (response.ok) {
+                const result = await response.json();
+                
+                // Update UI
+                selectedItems.clear();
+                document.querySelectorAll('.item-checkbox').forEach(cb => cb.checked = false);
+                
+                // Reload current view
+                if (activeCollectionId === 'all') {
+                    loadAllCollections();
+                } else {
+                    const collectionName = currentCollectionTitleEl.textContent;
+                    loadCollectionItems(activeCollectionId, collectionName);
+                }
+                
+                showToast(`Removed ${result.removedCount} item${result.removedCount === 1 ? '' : 's'} from AI Knowledge Base`, 'success');
+            } else {
+                throw new Error('Failed to remove items');
+            }
+            
+        } catch (error) {
+            console.error('Error removing from AI:', error);
+            showToast('Error removing items from AI Knowledge Base', 'error');
+        } finally {
+            removeFromAIBtn.disabled = false;
+            removeFromAIBtn.innerHTML = '<i data-feather="brain"></i> Remove from AI';
+            updateBulkActionsPanel();
+            feather.replace();
+        }
+    }
+
+    function selectAllItems() {
+        const checkboxes = document.querySelectorAll('.item-checkbox');
+        const allSelected = Array.from(checkboxes).every(cb => cb.checked);
+        
+        checkboxes.forEach(cb => {
+            cb.checked = !allSelected;
+            handleItemSelection({ target: cb });
+        });
+    }
+
+    function showToast(message, type = 'info') {
+        // Simple toast implementation
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        
+        setTimeout(() => {
+            toast.classList.add('show');
+        }, 100);
+        
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => document.body.removeChild(toast), 300);
+        }, 3000);
+    }
+
+    // =================================================================
+    // EXISTING FUNCTIONS (KEPT FOR COMPATIBILITY)
+    // =================================================================
+
     async function createNewCollection(name) {
         if (!currentUser || !name) return;
         LoggingService.logEvent('collection_create_attempt', { name });
@@ -317,8 +599,14 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             await deleteDoc(doc(db, "users", currentUser.uid, collectionName, itemId));
             LoggingService.logEvent('item_delete_success', { itemId });
-            const currentCollectionName = currentCollectionTitleEl.textContent;
-            loadCollectionItems(activeCollectionId, currentCollectionName);
+            
+            // Reload current view
+            if (activeCollectionId === 'all') {
+                loadAllCollections();
+            } else {
+                const currentCollectionName = currentCollectionTitleEl.textContent;
+                loadCollectionItems(activeCollectionId, currentCollectionName);
+            }
         } catch (error) {
             console.error("Error deleting item:", error);
             LoggingService.logEvent('item_delete_failure', { 
@@ -331,7 +619,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function deleteActiveCollection() {
-        if (!currentUser || !activeCollectionId) return;
+        if (!currentUser || !activeCollectionId || activeCollectionId === 'all') return;
         if (!confirm(`Are you sure you want to delete this entire collection and all its contents? This cannot be undone.`)) return;
         LoggingService.logEvent('collection_delete_attempt', { collectionId: activeCollectionId });
         try {
@@ -364,27 +652,29 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-// =================================================================
-// VIEW TOGGLING LOGIC
-// =================================================================
+    // =================================================================
+    // CHAT LOGIC (UPDATED TO WORK WITH AI KNOWLEDGE BASE)
+    // =================================================================
 
-    let isChatView = false; // Add this state variable near the top with the others
+    let isChatView = false;
 
     function setView(showChat) {
         isChatView = showChat;
         if (showChat) {
-        libraryViewContainer.classList.add('hidden');
-        chatContainer.classList.remove('hidden');
-        viewToggleButton.textContent = 'View Library';
-    }   else {
-        libraryViewContainer.classList.remove('hidden');
-        chatContainer.classList.add('hidden');
-        viewToggleButton.textContent = 'Chat with this Collection';
-     }
+            libraryViewContainer.classList.add('hidden');
+            chatContainer.classList.remove('hidden');
+            viewToggleButton.textContent = 'View Library';
+        } else {
+            libraryViewContainer.classList.remove('hidden');
+            chatContainer.classList.add('hidden');
+            
+            if (activeCollectionId === 'all') {
+                viewToggleButton.textContent = 'Chat with AI Knowledge';
+            } else {
+                viewToggleButton.textContent = 'Chat with this Collection';
+            }
+        }
     }
-    // =================================================================
-    // CHAT LOGIC
-    // =================================================================
 
     async function handleChatSubmit() {
         const question = chatInputEl.value.trim();
@@ -437,133 +727,29 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         messageDiv.innerHTML = `<p>${message.replace(/\n/g, '<br>')}</p>`;
         chatMessagesEl.appendChild(messageDiv);
-        chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight; // Auto-scroll
+        chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
     }
 
     // =================================================================
-// DEBUG MODAL - FIXED VERSION
-// =================================================================
+    // MODAL FUNCTIONALITY 
+    // =================================================================
 
-function openDebugModal() {
-    LoggingService.logEvent('debug_modal_opened_library');
-    const logData = LoggingService.getLog();
-    const logText = JSON.stringify(logData, null, 2);
-    
-    // Create a data URL for JSON download
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(logText);
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
-    const filename = `debug-log-${timestamp}.json`;
-    
-    const reportHtml = `
-        <div style="position: relative;">
-            <div class="mb-4 p-3 bg-slate-700 rounded-md">
-                <p class="text-sm text-slate-300 mb-2">Debug log with ${logData.length} entries. You can copy, select, or download the log data.</p>
-            </div>
-            <pre id="debugLogContent" class="bg-slate-900 p-4 rounded-md text-xs font-mono" style="max-height: 50vh; overflow-y: auto; user-select: text; cursor: text; white-space: pre-wrap; word-break: break-all;">${escapeHtml(logText)}</pre>
-            <div class="mt-4 flex gap-2 flex-wrap">
-                <button id="copyLogBtn" class="btn btn-secondary">📋 Copy to Clipboard</button>
-                <button id="selectAllBtn" class="btn btn-secondary">✓ Select All Text</button>
-                <a id="downloadLogBtn" href="${dataStr}" download="${filename}" class="btn btn-secondary inline-flex items-center">💾 Download JSON</a>
-            </div>
-            <div id="copyFeedback" class="mt-2 text-green-400 hidden">✓ Log copied to clipboard!</div>
-        </div>
-    `;
-    
-    openModal("Session Debug Log", reportHtml);
-    
-    // Copy to clipboard functionality
-    document.getElementById('copyLogBtn').addEventListener('click', () => {
-        navigator.clipboard.writeText(logText).then(() => {
-            const feedback = document.getElementById('copyFeedback');
-            feedback.classList.remove('hidden');
-            setTimeout(() => feedback.classList.add('hidden'), 2000);
-            LoggingService.logEvent('debug_log_copied');
-        }).catch(err => {
-            console.error('Failed to copy log', err);
-            // Fallback: Select all text for manual copying
-            const logContent = document.getElementById('debugLogContent');
-            const range = document.createRange();
-            range.selectNodeContents(logContent);
-            const selection = window.getSelection();
-            selection.removeAllRanges();
-            selection.addRange(range);
-            alert('Clipboard access failed. The text has been selected - press Ctrl+C or Cmd+C to copy.');
-            LoggingService.logEvent('debug_log_copy_failed', { error: err.message });
-        });
-    });
-    
-    // Select all functionality
-    document.getElementById('selectAllBtn').addEventListener('click', () => {
-        const logContent = document.getElementById('debugLogContent');
-        const range = document.createRange();
-        range.selectNodeContents(logContent);
-        const selection = window.getSelection();
-        selection.removeAllRanges();
-        selection.addRange(range);
-        
-        // Also focus the element to make selection more visible
-        logContent.focus();
-    });
-    
-    // Log download action
-    document.getElementById('downloadLogBtn').addEventListener('click', () => {
-        LoggingService.logEvent('debug_log_downloaded', { filename });
-    });
-}
-
-// Helper function to escape HTML
-function escapeHtml(unsafe) {
-    return unsafe
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
-}
-    
-function openModal(title, content) {
-    // Remove any existing modal first
-    const existingModal = document.getElementById('modal-backdrop');
-    if (existingModal) {
-        existingModal.remove();
+    function openModal(title, content) {
+        document.getElementById('modal-title').textContent = title;
+        document.getElementById('modal-body').innerHTML = content;
+        document.getElementById('modal').classList.remove('hidden');
     }
-    
-    // Create modal WITHOUT backdrop blur that was causing issues
-    const modalHtml = `
-        <div id="modal-backdrop" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50">
-            <div id="modal-content" class="bg-slate-800 rounded-lg w-full max-w-4xl" style="max-height: 85vh; display: flex; flex-direction: column;">
-                <div class="flex justify-between items-center p-6 border-b border-slate-700 flex-shrink-0">
-                    <h2 class="text-2xl font-semibold text-slate-100">${title}</h2>
-                    <button id="modal-close" class="text-slate-400 hover:text-slate-100 text-3xl leading-none p-2">&times;</button>
-                </div>
-                <div class="p-6 overflow-y-auto flex-grow text-slate-300">${content}</div>
-            </div>
-        </div>
-    `;
-    
-    document.body.insertAdjacentHTML('beforeend', modalHtml);
-    
-    const backdrop = document.getElementById('modal-backdrop');
-    const closeBtn = document.getElementById('modal-close');
-    const modalContent = document.getElementById('modal-content');
-    
-    const closeModal = () => {
-        backdrop.remove();
-    };
-    
-    closeBtn.addEventListener('click', closeModal);
-    
-    // Only close when clicking the backdrop, not the modal content
-    backdrop.addEventListener('click', (e) => {
-        if (e.target === backdrop) {
-            closeModal();
-        }
+
+    function closeModal() {
+        document.getElementById('modal').classList.add('hidden');
+    }
+
+    // Close modal when clicking outside or on close button
+    document.getElementById('modal-backdrop').addEventListener('click', (e) => {
+        if (e.target === e.currentTarget) closeModal();
     });
     
-    // Prevent clicks inside modal from closing it
-    modalContent.addEventListener('click', (e) => {
-        e.stopPropagation();
-    });
+    document.getElementById('modal-close').addEventListener('click', closeModal);
     
     // ESC key to close
     document.addEventListener('keydown', function escHandler(e) {
@@ -572,7 +758,29 @@ function openModal(title, content) {
             document.removeEventListener('keydown', escHandler);
         }
     });
-}
+
+    function openDebugModal() {
+        LoggingService.logEvent('debug_modal_opened_library');
+        const logData = LoggingService.getLog();
+        const logText = JSON.stringify(logData, null, 2);
+        
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(logText);
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+        const filename = `debug-log-${timestamp}.json`;
+        
+        const reportHtml = `
+            <div style="position: relative;">
+                <div class="mb-4 p-3 bg-slate-700 rounded-md">
+                    <p class="text-sm text-slate-300 mb-2">Debug log with ${logData.length} entries.</p>
+                    <a href="${dataStr}" download="${filename}" class="inline-block bg-amber-500 text-slate-900 px-3 py-1 rounded text-sm font-medium hover:bg-amber-400 transition-colors">Download Log</a>
+                </div>
+                <div style="max-height: 400px; overflow-y: auto; background: #1e293b; padding: 1rem; border-radius: 0.375rem; font-family: monospace; font-size: 0.75rem; color: #e2e8f0;">
+                    <pre>${logText}</pre>
+                </div>
+            </div>
+        `;
+        openModal("Debug Information", reportHtml);
+    }
 
     // =================================================================
     // EVENT LISTENERS
@@ -585,9 +793,11 @@ function openModal(title, content) {
             handleChatSubmit();
         }
     });
+    
     viewToggleButton.addEventListener('click', () => {
-        setView(!isChatView); // Toggle the view
+        setView(!isChatView);
     });
+    
     newCollectionBtn.addEventListener('click', () => {
         LoggingService.logEvent('ui_action', { component: 'new_collection_button' });
         const name = prompt("Enter a name for your new collection:");
@@ -602,5 +812,10 @@ function openModal(title, content) {
     });
     
     debugButton.addEventListener('click', openDebugModal);
+    
+    // AI Knowledge Base Controls
+    selectAllBtn?.addEventListener('click', selectAllItems);
+    addToAIBtn?.addEventListener('click', addSelectedToAI);
+    removeFromAIBtn?.addEventListener('click', removeSelectedFromAI);
 
 });

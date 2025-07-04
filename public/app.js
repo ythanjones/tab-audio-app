@@ -371,15 +371,37 @@ document.addEventListener('DOMContentLoaded', () => {
     function displayLearningPacket(packet, transcript) {
         modalTitle.textContent = "Your Learning Packet";
         let html = '<div class="space-y-6">';
-        const originalPrompt = "Generate a complete learning packet including a summary, key concepts, and flashcards from the provided transcript.";
-
+        const originalPrompt = "Generate a complete learning packet including a summary, key concepts, flashcards, and action items from the provided transcript.";
+    
+        // Summary Section
         if (packet.summary && !packet.summary.startsWith("Error:")) {
             html += createPacketSection('Summary', packet.summary, 'summarize_packet_part', transcript, originalPrompt);
         }
+    
+        // Key Concepts Section
         if (packet.keyConcepts && packet.keyConcepts.length > 0 && !packet.keyConcepts[0].concept.startsWith("Error")) {
             const conceptsHtml = `<ul class="space-y-2 list-disc list-inside">${packet.keyConcepts.map(item => `<li><strong>${item.concept}:</strong> ${item.definition}</li>`).join('')}</ul>`;
             html += createPacketSection('Key Concepts', conceptsHtml, 'keyConcepts_packet_part', transcript, originalPrompt);
         }
+    
+        // ✅ NEW: Action Items Section
+        if (packet.actionItems && packet.actionItems.length > 0 && !packet.actionItems[0].startsWith("Error")) {
+            const actionItemsHtml = `
+                <ul class="space-y-2">
+                    ${packet.actionItems.map(item => `
+                        <li class="flex items-start gap-3 p-3 bg-slate-800 rounded-md border border-slate-700">
+                            <div class="flex-shrink-0 mt-1">
+                                <div class="w-4 h-4 border-2 border-amber-500 rounded-sm"></div>
+                            </div>
+                            <span class="text-slate-200">${item}</span>
+                        </li>
+                    `).join('')}
+                </ul>
+            `;
+            html += createPacketSection('Action Items', actionItemsHtml, 'actionItems_packet_part', transcript, originalPrompt);
+        }
+    
+        // Flashcards Section
         if (packet.flashcards && packet.flashcards.length > 0 && !packet.flashcards[0].front.startsWith("Error")) {
             const flashcardsHtml = `<div class="grid grid-cols-1 md:grid-cols-2 gap-4">${packet.flashcards.map(card => `<div class="bg-slate-800 p-3 rounded-md border border-slate-700"><p class="font-semibold">Q: ${card.front}</p><p class="text-slate-400 mt-1">A: ${card.back}</p></div>`).join('')}</div>`;
             html += createPacketSection('Flashcards', flashcardsHtml, 'flashcards_packet_part', transcript, originalPrompt);
@@ -390,7 +412,7 @@ document.addEventListener('DOMContentLoaded', () => {
         modalFeedbackEl.innerHTML = `<button id="savePacketBtn" class="btn btn-primary">Save to Library</button>`;
         modalFeedbackEl.classList.remove('hidden');
         document.getElementById('savePacketBtn').addEventListener('click', () => openSaveModal(null, packet));
-
+    
         modalBody.innerHTML = html;
         addFeedbackListeners();
         feather.replace();
