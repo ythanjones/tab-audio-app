@@ -40,9 +40,12 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // --- State variables & Constants ---
-    const AI_JUDGE_URL = 'https://idx-tab-audio-app-25992832-715569829205.europe-west2.run.app/grade-response';
-    const AGENT_SERVICE_URL = 'https://learning-agent-service-715569829205.europe-west2.run.app/generate-packet'; 
-    
+    const AI_JUDGE_URL = 'https://backend-service-g4vupj46ma-nw.a.run.app/grade-response';
+    const AGENT_SERVICE_URL = 'https://agent-backend-service-g4vupj46ma-nw.a.run.app/generate-packet';    
+    // ✅ FIX: Add service health check URLs
+    const BACKEND_HEALTH_URL = 'https://backend-service-g4vupj46ma-nw.a.run.app/health';
+    const AGENT_HEALTH_URL = 'https://agent-backend-service-g4vupj46ma-nw.a.run.app/health';
+
     let currentUser = null;
     let db, auth, analytics;
     let mediaRecorder;
@@ -119,8 +122,21 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
     } catch (error) {
-        console.error("Firebase Initialization Error:", error.message);
-        openModal("Critical Error", `Could not initialize the application. Error: ${error.message}`);
+        console.error("Error calling agent service:", error);
+        LoggingService.logEvent('agent_action_failure', { error: error.message });
+        
+        // ✅ FIX: Better error messages with suggestions
+        let errorMessage = `Could not generate Learning Packet. ${error.message}`;
+        
+        if (error.message.includes('GEMINI_API_KEY')) {
+            errorMessage += '\n\nSuggestion: The backend service needs the GEMINI_API_KEY environment variable configured.';
+        } else if (error.message.includes('404')) {
+            errorMessage += '\n\nSuggestion: The service endpoint may not be available. Check service deployment.';
+        } else if (error.message.includes('500')) {
+            errorMessage += '\n\nSuggestion: There was a server error. Check the service logs for more details.';
+        }
+        
+        modalBody.innerHTML = `<p class="text-red-400 whitespace-pre-line">${errorMessage}</p>`;
     }
     
     function renderLoginButton() {
