@@ -39,6 +39,13 @@ const app = express();
 app.use(cors({ origin: true }));
 app.use(express.json());
 
+// Add this before your /chat endpoint
+app.get('/', (req, res) => {
+    res.status(200).json({ 
+        status: 'Query Service is running',
+        timestamp: new Date().toISOString()
+    });
+});
 
 // =================================================================
 //  Main Chat Endpoint
