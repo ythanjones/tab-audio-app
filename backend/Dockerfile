@@ -1,4 +1,4 @@
-# Backend Service Dockerfile
+# Backend Service Dockerfile - Robust Version
 FROM node:18-alpine
 
 # Set working directory
@@ -7,8 +7,8 @@ WORKDIR /app
 # Copy package files first for better caching
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production
+# Install dependencies - use npm install instead of npm ci for more flexibility
+RUN npm install --omit=dev && npm cache clean --force
 
 # Copy application code
 COPY . .
