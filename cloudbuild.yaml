@@ -1,5 +1,5 @@
 # Cloud Build configuration for tab-audio-app
-# Simplified version that works immediately
+# FIXED VERSION - Includes GEMINI_API_KEY for backend-service
 
 steps:
   # Step 1: Build Backend Service Docker Image
@@ -37,6 +37,7 @@ steps:
     id: 'push-agent-backend'
 
   # Step 5: Deploy Backend Service to Cloud Run
+  # 🔧 FIXED: Added GEMINI_API_KEY environment variable
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: 'gcloud'
     args: [
@@ -49,7 +50,7 @@ steps:
       '--memory', '1Gi',
       '--cpu', '1',
       '--max-instances', '10',
-      '--set-env-vars', 'NODE_ENV=production',
+      '--set-env-vars', 'NODE_ENV=production,GEMINI_API_KEY=AIzaSyCH7jBG_iSTFAYrWEtazEvlXk2ZC413AGo',
       '--project', '$PROJECT_ID'
     ]
     waitFor: ['push-backend']
