@@ -1,0 +1,25 @@
+# 🚀 DEPLOYMENT COMMANDS FOR FIXING THE SYSTEM
+
+# 1. Redeploy Query Service (if needed)
+cd query-service-backend
+gcloud run deploy query-service \
+  --source . \
+  --platform managed \
+  --region europe-west2 \
+  --allow-unauthenticated \
+  --set-env-vars GEMINI_API_KEY=$GEMINI_API_KEY \
+  --project tab-audio-app
+
+# 2. Redeploy Firebase Functions (if needed)
+firebase deploy --only functions
+
+# 3. Check Vector Search Status
+gcloud ai index-endpoints list --region=europe-west2 --project=tab-audio-app
+gcloud ai indexes list --region=europe-west2 --project=tab-audio-app
+
+# 4. Create new vector search if needed
+gcloud ai index-endpoints create \
+  --display-name="tab-audio-app-endpoint" \
+  --description="Vector search endpoint for tab audio app" \
+  --region=europe-west2 \
+  --project=tab-audio-app
