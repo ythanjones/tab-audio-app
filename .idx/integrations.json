@@ -1,0 +1,10 @@
+{
+  "firebase_hosting": {
+    "deploymentHostingUrl": "https://tab-audio-app.web.app"
+  },
+  "cloud_run_deploy": {
+    "region": "europe-west2",
+    "sourceFlag": "--source backend",
+    "allowUnauthenticatedInvocationsFlag": "--allow-unauthenticated"
+  }
+}
