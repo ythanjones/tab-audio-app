@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Learning Assistant - Debug</title>
+    <style>
+        /* Embedded CSS for testing */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: white;
+        }
+        
+        #app-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .main-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+            margin-bottom: 30px;
+        }
+        
+        .core-content {
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+        }
+        
+        .control-section {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background: #4f46e5;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #4338ca;
+            transform: translateY(-1px);
+        }
+        
+        .btn-secondary {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.3);
+        }
+        
+        .btn-secondary:hover {
+            background: rgba(255,255,255,0.3);
+        }
+        
+        .output-box {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 12px;
+            padding: 30px;
+            min-height: 200px;
+            font-size: 16px;
+            line-height: 1.6;
+            backdrop-filter: blur(10px);
+        }
+        
+        .output-box:empty:before {
+            content: "Your transcript will appear here...";
+            color: rgba(255,255,255,0.5);
+            font-style: italic;
+        }
+        
+        .main-footer {
+            margin-top: 30px;
+            text-align: center;
+        }
+        
+        .pro-tools-btn {
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        /* Debug info */
+        .debug-info {
+            background: rgba(0,0,0,0.3);
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .status-ok { background: #10b981; }
+        .status-error { background: #ef4444; }
+        .status-warning { background: #f59e0b; }
+    </style>
+</head>
+<body>
+    <div id="app-container">
+        <header class="main-header">
+            <h1 style="font-size: 24px; font-weight: bold;">🧠 AI Learning Assistant</h1>
+            <div>
+                <span style="background: rgba(255,255,255,0.2); padding: 8px 16px; border-radius: 20px; font-size: 14px;">
+                    Debug Mode
+                </span>
+            </div>
+        </header>
+
+        <div class="debug-info">
+            <h3>🔍 System Status:</h3>
+            <p><span class="status-indicator status-ok"></span>Frontend Server: Running</p>
+            <p><span class="status-indicator status-warning"></span>Styling: Debug Mode (CSS Loading Issue)</p>
+            <p><span class="status-indicator status-error"></span>Chat Service: Needs Embedding Fix</p>
+        </div>
+
+        <main class="core-content">
+            <div class="control-section top-controls">
+                <button class="btn btn-primary">
+                    🎤 Record
+                </button>
+                <button class="btn btn-secondary">
+                    ⏹️ Stop
+                </button>
+            </div>
+
+            <div class="output-box" id="transcriptionOutput"></div>
+
+            <div class="control-section bottom-controls">
+                <button class="btn btn-primary">
+                    🎁 Generate Learning Packet
+                </button>
+                <button class="btn btn-secondary">
+                    💾 Save
+                </button>
+            </div>
+        </main>
+
+        <footer class="main-footer">
+            <button class="btn btn-secondary pro-tools-btn">
+                🧠 Individual AI Tools ▼
+            </button>
+        </footer>
+        
+        <div class="debug-info">
+            <h3>🎯 Next Steps:</h3>
+            <p>1. ✅ Frontend is working!</p>
+            <p>2. 🔧 Fix CSS loading (Tailwind + styles.css)</p>
+            <p>3. 🔍 Fix embedding generation</p>
+            <p>4. 🚀 Test full system</p>
+            <br>
+            <p><strong>📚 Library Page:</strong> <a href="/library.html" style="color: #60a5fa;">Visit Library →</a></p>
+        </div>
+    </div>
+</body>
+</html>
