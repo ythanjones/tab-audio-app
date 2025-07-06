@@ -88,34 +88,10 @@ app.post('/grade-response', async (req, res) => {
 
     console.log(`🔍 Grading response for feedback ID: ${feedbackId}`);
     
-    const judgingPrompt = `
-      You are a Quality Assurance specialist for an AI learning assistant. 
-      Your task is to evaluate an AI-generated response based on a user's transcript.
+    const judgingPrompt = `Rate this AI response from 1-5. Return only JSON: {"relevance_score": 4, "clarity_score": 4, "formatting_score": 4, "justification": "Good response"}
 
-      Here is the user's original transcript:
-      ---
-      ${transcript}
-      ---
-
-      Here is the prompt that was given to the worker AI:
-      ---
-      ${prompt}
-      ---
-
-      Here is the response that the worker AI generated:
-      ---
-      ${response}
-      ---
-
-      Please evaluate the response based on the following criteria and provide a score from 1 (poor) to 5 (excellent) for each. 
-      Return your evaluation ONLY as a raw JSON object with the following structure: 
-      {
-        "relevance_score": [score], 
-        "clarity_score": [score], 
-        "formatting_score": [score], 
-        "justification": "[Your brief justification for the scores]"
-      }
-    `;
+Original text: ${transcript}
+AI response: ${response}`;
 
     try {
         const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
