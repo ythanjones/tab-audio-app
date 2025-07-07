@@ -4,12 +4,13 @@
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 const { PredictionServiceClient } = require('@google-cloud/aiplatform');
+const { generateEmbedding: generateEmbeddingUtil } = require('../shared/embeddingUtils'); // Jules: Import shared function
 
 // --- Configuration ---
 const PROJECT_ID = 'tab-audio-app'; 
 const LOCATION = 'europe-west2'; 
-const PUBLISHER = 'google';
-const EMBEDDING_MODEL = 'gemini-embedding-001';
+// const PUBLISHER = 'google'; // Jules: Moved to shared util
+// const EMBEDDING_MODEL = 'gemini-embedding-001'; // Jules: Moved to shared util
 
 // ✅ FIXED: Updated with correct IDs
 const VECTOR_SEARCH_INDEX_ID = '7989579253001748480';         // Base index ID (for upserts)
@@ -24,7 +25,7 @@ admin.initializeApp({
 
 // Initialize the Vertex AI Client
 const clientOptions = { apiEndpoint: `${LOCATION}-aiplatform.googleapis.com` };
-const predictionServiceClient = new PredictionServiceClient(clientOptions);
+const predictionServiceClient = new PredictionServiceClient(clientOptions); // Jules: This client will be passed to the util
 
 // =================================================================
 // Firestore Triggers (AUTO-EMBEDDING - Optional)
@@ -337,7 +338,8 @@ async function handleEmbedding(embeddingData) {
         console.log(`📄 Text length: ${text.length} characters`);
         
         // 1. Generate the vector embedding from the text.
-        const embedding = await generateEmbedding(text);
+        // Jules: Use shared utility function, passing the client
+        const embedding = await generateEmbeddingUtil(text, "RETRIEVAL_DOCUMENT", predictionServiceClient);
         console.log(`✅ Successfully generated embedding with ${embedding.length} dimensions`);
 
         // 2. Prepare the data point to be upserted into the Vector Search index.
@@ -370,39 +372,7 @@ async function handleEmbedding(embeddingData) {
     }
 }
 
-/**
- * ✅ FIXED: Generates an embedding using correct format for gemini-embedding-001
- */
-async function generateEmbedding(text) {
-    const endpoint = `projects/${PROJECT_ID}/locations/${LOCATION}/publishers/${PUBLISHER}/models/${EMBEDDING_MODEL}`;
-    
-    // ✅ FIX: Updated request format for gemini-embedding-001
-    const instance = { 
-        content: text,
-        task_type: "RETRIEVAL_DOCUMENT"  // For documents being stored
-    };
-    
-    const request = { endpoint, instances: [instance] };
-    
-    console.log(`📡 Making embedding request to: ${endpoint}`);
-    
-    try {
-        const [response] = await predictionServiceClient.predict(request);
-        
-        // ✅ FIX: Extract embedding from correct response structure
-        const embedding = response.predictions[0].structValue.fields.embedding.listValue.values.map(v => v.numberValue);
-        
-        console.log(`✅ Embedding generated successfully: ${embedding.length} dimensions`);
-        return embedding;
-    } catch (error) {
-        console.error(`❌ Embedding generation failed:`, {
-            message: error.message,
-            code: error.code,
-            details: error.details
-        });
-        throw error;
-    }
-}
+// Jules: Removed local generateEmbedding function as it's now in shared/embeddingUtils.js
 
 /**
  * Upserts data points to the Vector Search index.

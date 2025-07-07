@@ -6,13 +6,14 @@ const cors = require('cors');
 const admin = require('firebase-admin');
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { PredictionServiceClient } = require('@google-cloud/aiplatform');
+const { generateEmbedding: generateEmbeddingUtil } = require('../shared/embeddingUtils'); // Jules: Import shared function
 
 // --- Configuration ---
 const PORT = process.env.PORT || 8080;
 const PROJECT_ID = 'tab-audio-app'; 
 const LOCATION = 'europe-west2'; 
-const PUBLISHER = 'google';
-const EMBEDDING_MODEL = 'gemini-embedding-001';
+// const PUBLISHER = 'google'; // Jules: Moved to shared util
+// const EMBEDDING_MODEL = 'gemini-embedding-001'; // Jules: Moved to shared util
 
 // Vector Search Configuration
 const VECTOR_SEARCH_ENDPOINT_ID = '6958254938333904896';
@@ -92,38 +93,7 @@ app.post('/chat', async (req, res) => {
 //  Helper Functions
 // =================================================================
 
-/**
- * ✅ FIXED: Generates an embedding using correct format for gemini-embedding-001
- */
-async function generateEmbedding(text) {
-    const endpoint = `projects/${PROJECT_ID}/locations/${LOCATION}/publishers/${PUBLISHER}/models/${EMBEDDING_MODEL}`;
-    
-    // ✅ FIX: Updated request format for gemini-embedding-001
-    const instance = { 
-        content: text,
-        task_type: "RETRIEVAL_QUERY"  // For query embeddings
-    };
-    const request = { endpoint, instances: [instance] };
-    
-    console.log(`📡 Generating embedding for query`);
-    
-    try {
-        const [response] = await predictionServiceClient.predict(request);
-        
-        // ✅ FIX: Extract embedding from correct response structure
-        const embedding = response.predictions[0].structValue.fields.embedding.listValue.values.map(v => v.numberValue);
-        
-        console.log(`✅ Query embedding generated: ${embedding.length} dimensions`);
-        return embedding;
-    } catch (error) {
-        console.error(`❌ Embedding generation failed:`, {
-            message: error.message,
-            code: error.code,
-            details: error.details
-        });
-        throw error;
-    }
-}
+// Jules: Removed local generateEmbedding function, will use shared generateEmbeddingUtil
 
 /**
  * ✅ FIXED: Finds relevant documents using proper vector search format
@@ -134,7 +104,8 @@ async function findRelevantDocuments(userId, question, collectionIds) {
         console.log('Generating embedding for question:', question);
         let questionEmbedding;
         try {
-            questionEmbedding = await generateEmbedding(question);
+            // Jules: Use shared utility function, passing the client and task type
+            questionEmbedding = await generateEmbeddingUtil(question, "RETRIEVAL_QUERY", predictionServiceClient);
             console.log('Embedding generated successfully, dimension:', questionEmbedding.length);
         } catch (embeddingError) {
             console.error('Error generating embedding:', embeddingError);

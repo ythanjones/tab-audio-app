@@ -1,25 +1,27 @@
 import LoggingService from './loggingService.js';
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js";
-import { getAnalytics, logEvent as fbLogEvent } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-analytics.js";
-import { getFirestore, collection, addDoc, doc, setDoc, getDoc, serverTimestamp, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-firestore.js";
+// Jules: Import Firebase services and specific functions from the shared module and Firebase SDK
+import { auth, db, analytics, firebaseInitialized } from './firebaseService.js';
 import { 
-    getAuth, 
     onAuthStateChanged,
     createUserWithEmailAndPassword,
     signInWithEmailAndPassword,
     signOut
 } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-auth.js";
+import {
+    collection,
+    addDoc,
+    doc,
+    setDoc,
+    getDoc,
+    serverTimestamp,
+    getDocs,
+    query,
+    orderBy
+} from "https://www.gstatic.com/firebasejs/11.9.1/firebase-firestore.js";
+// Jules: logEvent from Firebase Analytics is not directly used, so removing its specific import for now.
+// If fbLogEvent is needed, it should be imported from 'firebase/analytics' and used with the `analytics` instance.
 
-// Your web app's Firebase configuration
-const firebaseConfig = {
-    apiKey: "AIzaSyCH7jBG_iSTFAYrWEtazEvlXk2ZC413AGo",
-    authDomain: "tab-audio-app.firebaseapp.com",
-    projectId: "tab-audio-app",
-    storageBucket: "tab-audio-app.firebasestorage.app",
-    messagingSenderId: "715569829205",
-    appId: "1:715569829205:web:216b98f170035f2fcf0bdc",
-    measurementId: "G-X9T1WHYM35"
-};
+// Jules: firebaseConfig is now in firebaseService.js
 
 document.addEventListener('DOMContentLoaded', () => {
 
@@ -47,12 +49,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const AGENT_HEALTH_URL = 'https://agent-backend-service-g4vupj46ma-nw.a.run.app/health';
 
     let currentUser = null;
-    let db, auth, analytics;
+    // let db, auth, analytics; // Jules: These are now imported from firebaseService.js
     let mediaRecorder;
     let audioStream;
     let audioChunks = [];
     let activeApiKey = null;
-    let firebaseInitialized = false;
+    // let firebaseInitialized = false; // Jules: This is now imported from firebaseService.js
     let promptsCache = new Map();
 
     // --- DOM element references ---
@@ -80,20 +82,15 @@ document.addEventListener('DOMContentLoaded', () => {
     // INITIALIZATION & AUTHENTICATION
     // =================================================================
 
-    try {
-        if (!firebaseConfig.apiKey) throw new Error("Firebase config object is empty.");
-        
-        const app = initializeApp(firebaseConfig);
-        auth = getAuth(app);
-        analytics = getAnalytics(app);
-        db = getFirestore(app);
-        firebaseInitialized = true;
-        LoggingService.init();
-        LoggingService.logEvent('app_initialized');
+    // Jules: Firebase is initialized in firebaseService.js
+    // We just need to check if it was successful.
+    if (firebaseInitialized) {
+        LoggingService.init(); // Assuming this doesn't depend on Firebase being initialized first for its own init
+        LoggingService.logEvent('app_initialized_firebase_ready');
 
-        loadPrompts();
+        loadPrompts(); // Depends on `db` from firebaseService
 
-        onAuthStateChanged(auth, async (user) => {
+        onAuthStateChanged(auth, async (user) => { // `auth` from firebaseService
             currentUser = user;
             if (user) {
                 LoggingService.logEvent('auth_state_changed', { status: 'logged_in', userId: user.uid });
@@ -121,22 +118,20 @@ document.addEventListener('DOMContentLoaded', () => {
             updateUI();
         });
 
-    } catch (error) {
-        console.error("Error calling agent service:", error);
-        LoggingService.logEvent('agent_action_failure', { error: error.message });
-        
-        // ✅ FIX: Better error messages with suggestions
-        let errorMessage = `Could not generate Learning Packet. ${error.message}`;
-        
-        if (error.message.includes('GEMINI_API_KEY')) {
-            errorMessage += '\n\nSuggestion: The backend service needs the GEMINI_API_KEY environment variable configured.';
-        } else if (error.message.includes('404')) {
-            errorMessage += '\n\nSuggestion: The service endpoint may not be available. Check service deployment.';
-        } else if (error.message.includes('500')) {
-            errorMessage += '\n\nSuggestion: There was a server error. Check the service logs for more details.';
-        }
-        
-        modalBody.innerHTML = `<p class="text-red-400 whitespace-pre-line">${errorMessage}</p>`;
+    } else {
+        // Jules: Handle the case where Firebase failed to initialize
+        console.error("Firebase failed to initialize. App functionality will be limited.");
+        LoggingService.logEvent('app_start_failure_firebase_not_ready');
+        // Display a user-friendly message, perhaps in the modal or a dedicated error div
+        openModal("Application Error", "Could not connect to essential services. Please try refreshing the page. If the problem persists, contact support.");
+        // Disable UI elements that depend on Firebase
+        recordButton.disabled = true;
+        learningPacketButton.disabled = true;
+        saveButton.disabled = true;
+        aiDropdownButton.disabled = true;
+        logoutButton.disabled = true;
+        // Show login button, but it might not work
+        renderLoginButton();
     }
     
     function renderLoginButton() {

@@ -2,13 +2,12 @@
 // UPDATED VERSION - AI Knowledge Base Controls
 
 import LoggingService from './loggingService.js';
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js";
+// Jules: Import Firebase services and specific functions from the shared module and Firebase SDK
+import { auth, db, firebaseInitialized } from './firebaseService.js';
 import { 
-    getAuth, 
     onAuthStateChanged 
 } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-auth.js";
 import { 
-    getFirestore, 
     collection, 
     query, 
     where, 
@@ -21,16 +20,7 @@ import {
     serverTimestamp
 } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-firestore.js";
 
-// Firebase configuration
-const firebaseConfig = {
-    apiKey: "AIzaSyCH7jBG_iSTFAYrWEtazEvlXk2ZC413AGo",
-    authDomain: "tab-audio-app.firebaseapp.com",
-    projectId: "tab-audio-app",
-    storageBucket: "tab-audio-app.firebasestorage.app",
-    messagingSenderId: "715569829205",
-    appId: "1:715569829205:web:216b98f170035f2fcf0bdc",
-    measurementId: "G-X9T1WHYM35"
-};
+// Jules: firebaseConfig is now in firebaseService.js
 
 document.addEventListener('DOMContentLoaded', () => {
 
@@ -40,7 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const REMOVE_EMBEDDING_URL = 'https://europe-west2-tab-audio-app.cloudfunctions.net/removeFromKnowledgeBase';
     
     let currentUser = null;
-    let db, auth;
+    // let db, auth; // Jules: These are now imported from firebaseService.js
     let activeCollectionId = 'all';
     let selectedItems = new Set(); // Track selected items for batch operations
 
@@ -68,14 +58,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const bulkActionsPanel = document.getElementById('bulkActionsPanel');
 
     // --- INITIALIZATION ---
-    try {
-        const app = initializeApp(firebaseConfig);
-        auth = getAuth(app);
-        db = getFirestore(app);
-        LoggingService.init();
-        LoggingService.logEvent('library_page_loaded');
+    // Jules: Firebase is initialized in firebaseService.js
+    // We just need to check if it was successful.
+    if (firebaseInitialized) {
+        LoggingService.init(); // Assuming this doesn't depend on Firebase for its own init
+        LoggingService.logEvent('library_page_loaded_firebase_ready');
 
-        onAuthStateChanged(auth, (user) => {
+        onAuthStateChanged(auth, (user) => { // `auth` from firebaseService
             if (user) {
                 currentUser = user;
                 LoggingService.logEvent('auth_state_changed', { status: 'logged_in', userId: user.uid });
@@ -86,9 +75,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 window.location.href = '/';
             }
         });
-    } catch (error) {
-        console.error('Firebase initialization failed:', error);
-        LoggingService.logEvent('firebase_init_error', { error: error.message });
+    } else {
+        // Jules: Handle the case where Firebase failed to initialize
+        console.error("Firebase failed to initialize. Library functionality will be unavailable.");
+        LoggingService.logEvent('library_page_load_failure_firebase_not_ready');
+        // Display a user-friendly message.
+        // You might want to hide the main content and show an error message.
+        contentPanel.innerHTML = '<p class="text-red-500 text-center p-8">Could not connect to essential services. Please try refreshing the page. Library features are currently unavailable.</p>';
+        contentPanel.classList.remove('hidden'); // Ensure it's visible
+        // Disable buttons that require Firebase
+        newCollectionBtn.disabled = true;
+        deleteCollectionBtn.disabled = true;
+        viewToggleButton.disabled = true;
+        // Hide bulk actions if they were somehow visible
+        bulkActionsPanel.classList.add('hidden');
     }
 
     // =================================================================
