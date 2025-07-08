@@ -110,8 +110,29 @@
     <!-- Main Application Script -->
     <script type="module" src="app.js"></script>
     <script>
-        // Initialize Feather Icons
-        feather.replace();
+        // ✅ FIXED: Safe initialization of Feather Icons
+        function initFeatherIcons() {
+            try {
+                if (typeof feather !== 'undefined' && feather.replace) {
+                    feather.replace();
+                } else {
+                    // Retry if feather isn't loaded yet
+                    setTimeout(initFeatherIcons, 50);
+                }
+            } catch (error) {
+                console.warn('Error initializing feather icons:', error);
+            }
+        }
+        
+        // Initialize when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initFeatherIcons);
+        } else {
+            initFeatherIcons();
+        }
+        
+        // Also initialize after all resources load (backup)
+        window.addEventListener('load', initFeatherIcons);
     </script>
 
 </body>

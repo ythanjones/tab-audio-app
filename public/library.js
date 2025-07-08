@@ -21,6 +21,24 @@ import {
     serverTimestamp
 } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-firestore.js";
 
+function safeFeatherReplace() {
+    try {
+        if (typeof feather !== 'undefined' && feather.replace) {
+            feather.replace();
+        } else {
+            console.warn('Feather icons not yet loaded, skipping icon replacement');
+            // Retry after a short delay
+            setTimeout(() => {
+                if (typeof feather !== 'undefined' && feather.replace) {
+                    feather.replace();
+                }
+            }, 100);
+        }
+    } catch (error) {
+        console.warn('Error replacing feather icons:', error);
+    }
+}
+
 // Firebase configuration
 const firebaseConfig = {
     apiKey: "AIzaSyCH7jBG_iSTFAYrWEtazEvlXk2ZC413AGo",
@@ -153,7 +171,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const li = document.createElement('li');
         li.className = 'collection-item';
         li.dataset.id = collectionData.id;
-
+    
         const a = document.createElement('a');
         a.href = "#";
         a.title = collectionData.name;
@@ -164,7 +182,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         li.appendChild(a);
         collectionsListEl.appendChild(li);
-        feather.replace();
+        safeFeatherReplace();
     }
 
     async function loadAllCollections() {
@@ -291,30 +309,13 @@ document.addEventListener('DOMContentLoaded', () => {
             emptyStateEl.classList.remove('hidden');
             return;
         }
-
+    
         emptyStateEl.classList.add('hidden');
         itemsListEl.innerHTML = '';
-
+    
         items.forEach(item => renderItem(item));
-        feather.replace();
+        safeFeatherReplace(); // ✅ FIXED: Use safe function instead of feather.replace()
     }
-
-    function renderItem(itemData) {
-        const itemDiv = document.createElement('div');
-        itemDiv.className = 'library-item';
-        itemDiv.dataset.id = itemData.id;
-        itemDiv.dataset.type = itemData.type;
-
-        let iconType, badgeClass, badgeText;
-        if (itemData.type === 'transcript') {
-            iconType = 'file-text';
-            badgeClass = 'transcript-badge';
-            badgeText = 'Transcript';
-        } else {
-            iconType = 'gift';
-            badgeClass = 'packet-badge';
-            badgeText = 'Learning Packet';
-        }
 
         // Check if item is embedded in AI
         const isEmbedded = itemData.embeddedInAI === true;
@@ -537,7 +538,7 @@ document.addEventListener('DOMContentLoaded', () => {
             removeFromAIBtn.disabled = false;
             removeFromAIBtn.innerHTML = '<i data-feather="brain"></i> Remove from AI';
             updateBulkActionsPanel();
-            feather.replace();
+            safeFeatherReplace(); // ✅ FIXED: Use safe function instead of feather.replace()
         }
     }
 
