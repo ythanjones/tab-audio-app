@@ -10,7 +10,7 @@ const CONFIG = {
     EMBEDDING_FUNCTION_URL: 'https://europe-west2-tab-audio-app.cloudfunctions.net/addToKnowledgeBase',
     QUERY_SERVICE_URL: 'http://localhost:8080/chat', // Update when deployed
     CHROMADB_URL: 'http://localhost:8000',
-    GEMINI_API_KEY: process.env.GEMINI_API_KEY || 'your-api-key-here',
+    GEMINI_API_KEY: process.env.GEMINI_API_KEY || 'AIzaSyCH7jBG_iSTFAYrWEtazEvlXk2ZC413AGo',
     TEST_USER_ID: 'test-user-' + Date.now()
 };
 
