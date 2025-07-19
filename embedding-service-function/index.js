@@ -12,7 +12,7 @@ admin.initializeApp();
 // Configuration
 const PROJECT_ID = 'tab-audio-app';
 const EMBEDDING_MODEL = 'text-embedding-004'; // Latest stable embedding model
-
+const GEMINI_API_KEY = 'AIzaSyCH7jBG_iSTFAYrWEtazEvlXk2ZC413AGo'
 // Initialize ChromaDB client
 let chromaClient;
 let genAI;
