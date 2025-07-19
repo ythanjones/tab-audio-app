@@ -1,0 +1,10 @@
+{
+    "userId": "test-user-1",
+    "documents": [{
+      "documentId": "doc-1",
+      "text": "ChromaDB is an open-source vector database designed for AI applications. It allows you to store embeddings alongside metadata and provides fast similarity search.",
+      "title": "What is ChromaDB",
+      "documentType": "transcript",
+      "collectionId": "test-collection"
+    }]
+  }
