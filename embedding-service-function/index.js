@@ -1,5 +1,9 @@
 // File: embedding-service-function/index.js
 // ChromaDB version - Much simpler than Vertex AI!
+// Add at the very top of embedding-service-function/index.js
+if (process.env.NODE_ENV !== 'production') {
+    require('dotenv').config();
+}
 
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
@@ -12,7 +16,7 @@ admin.initializeApp();
 // Configuration
 const PROJECT_ID = 'tab-audio-app';
 const EMBEDDING_MODEL = 'text-embedding-004'; // Latest stable embedding model
-const GEMINI_API_KEY = 'AIzaSyCH7jBG_iSTFAYrWEtazEvlXk2ZC413AGo'
+
 // Initialize ChromaDB client
 let chromaClient;
 let genAI;
@@ -56,7 +60,10 @@ function getChromaClient() {
 }
 
 function getEmbeddingFunction() {
-    const apiKey = process.env.GEMINI_API_KEY;
+    // Try environment variable first, then Firebase config
+    const apiKey = process.env.GEMINI_API_KEY || 
+                   (functions.config().gemini && functions.config().gemini.key);
+    
     if (!apiKey) {
         throw new Error('GEMINI_API_KEY not configured');
     }
