@@ -14,20 +14,28 @@ const PORT = process.env.PORT || 8080;
 const PROJECT_ID = 'tab-audio-app';
 const EMBEDDING_MODEL = 'text-embedding-004';
 const CHAT_MODEL = 'gemini-1.5-flash';
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const CHROMADB_URL = process.env.CHROMADB_URL;
 
 // Initialize Firebase
 admin.initializeApp({ projectId: PROJECT_ID });
 const db = admin.firestore();
 
 // Initialize AI Clients
-const API_KEY = process.env.GEMINI_API_KEY;
-if (!API_KEY) {
-    console.error("❌ GEMINI_API_KEY environment variable not set!");
+// Initialize AI Clients
+const API_KEY = process.env.GEMINI_API_KEY; // This line already exists
+let textGenerationModel;
+if (API_KEY) {
+    // No longer declaring a new const, just using the existing one
+    const genAI = new GoogleGenerativeAI(API_KEY); 
+    textGenerationModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+} else {
+    console.error("GEMINI_API_KEY environment variable not set. The chat service will not work.");
 }
 
-const genAI = new GoogleGenerativeAI(API_KEY);
-const chatModel = genAI.getGenerativeModel({ model: CHAT_MODEL });
-const embeddingModel = genAI.getGenerativeModel({ model: EMBEDDING_MODEL });
+// This part of the code initializes the PredictionServiceClient
+const clientOptions = { apiEndpoint: `${LOCATION}-aiplatform.googleapis.com` };
+const predictionServiceClient = new PredictionServiceClient(clientOptions);
 
 // Initialize ChromaDB
 let chromaClient;
