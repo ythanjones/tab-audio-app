@@ -60,10 +60,10 @@ function getChromaClient() {
 }
 
 function getEmbeddingFunction() {
-    // In production, use Firebase config
+    // Try environment variable first (for local testing)
     let apiKey = process.env.GEMINI_API_KEY;
     
-    // If not in environment, try Firebase config
+    // In production, use Firebase config
     if (!apiKey && functions.config().gemini) {
         apiKey = functions.config().gemini.key;
     }
