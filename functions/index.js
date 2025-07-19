@@ -1,16 +1,14 @@
-/**
- * Import function triggers from their respective submodules:
- *
- * const {onCall} = require("firebase-functions/v2/https");
- * const {onDocumentWritten} = require("firebase-functions/v2/firestore");
- *
- * See a full list of supported triggers at https://firebase.google.com/docs/functions
- */
+// functions/index.js
+const functions = require("firebase-functions");
 
-const functions = require("firebase-functions/v2/https");
-const logger = require("firebase-functions/logger");
-const embeddingFunctions = require('../embedding-service-function/index.js');
+// Import the ChromaDB functions from embedding-service-function
+const { 
+    addToKnowledgeBase, 
+    removeFromKnowledgeBase 
+} = require('../embedding-service-function/index.js');
 
-exports.addToKnowledgeBase = embeddingFunctions.addToKnowledgeBase;
-exports.removeFromKnowledgeBase = embeddingFunctions.removeFromKnowledgeBase;
+// Export the functions
+exports.addToKnowledgeBase = addToKnowledgeBase;
+exports.removeFromKnowledgeBase = removeFromKnowledgeBase;
 
+// Any other existing functions can stay here
