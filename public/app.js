@@ -1,3 +1,6 @@
+// In service-A/index.js, service-B/index.js, etc.
+require('dotenv').config({ path: '../.env' });
+
 import LoggingService from './loggingService.js';
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js";
 import { getAnalytics, logEvent as fbLogEvent } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-analytics.js";

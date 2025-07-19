@@ -1,6 +1,7 @@
 // File: query-service-backend/index.js
 // ChromaDB version - Simplified query service
-require('dotenv').config();
+// In service-A/index.js, service-B/index.js, etc.
+require('dotenv').config({ path: '../.env' });
 
 const express = require('express');
 const cors = require('cors');

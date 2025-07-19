@@ -1,6 +1,9 @@
 // File: embedding-service-function/index.js
 // ChromaDB version - Much simpler than Vertex AI!
 // Add at the very top of embedding-service-function/index.js
+// In service-A/index.js, service-B/index.js, etc.
+require('dotenv').config({ path: '../.env' });
+
 if (process.env.NODE_ENV !== 'production') {
     require('dotenv').config();
 }

@@ -1,6 +1,8 @@
 // File: prompt-engineer-function/index.js
 // This Cloud Function is the "brain" of our self-improving system.
 // It is automatically triggered when new feedback is created in Firestore.
+// In service-A/index.js, service-B/index.js, etc.
+require('dotenv').config({ path: '../.env' });
 
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');

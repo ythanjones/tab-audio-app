@@ -1,5 +1,7 @@
 // File: agent-backend/index.js
 // This service acts as an orchestrator, calling multiple AI tools to create a 'Learning Packet'.
+// In service-A/index.js, service-B/index.js, etc.
+require('dotenv').config({ path: '../.env' });
 
 const express = require('express');
 const cors = require('cors');

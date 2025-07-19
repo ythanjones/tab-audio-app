@@ -1,5 +1,7 @@
 // File: backend/index.js
 // This service acts as the "AI Judge" for quality assurance.
+// In service-A/index.js, service-B/index.js, etc.
+require('dotenv').config({ path: '../.env' });
 
 const express = require('express');
 const admin = require('firebase-admin');
