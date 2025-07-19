@@ -1,39 +1,61 @@
 // File: query-service-backend/index.js
-// FIXED VERSION - Resolves embedding generation and search issues
+// ChromaDB version - Simplified query service
 
 const express = require('express');
 const cors = require('cors');
 const admin = require('firebase-admin');
+const { ChromaClient } = require('chromadb');
 const { GoogleGenerativeAI } = require("@google/generative-ai");
-const { PredictionServiceClient } = require('@google-cloud/aiplatform');
 
-// --- Configuration ---
+// Configuration
 const PORT = process.env.PORT || 8080;
-const PROJECT_ID = 'tab-audio-app'; 
-const LOCATION = 'europe-west2'; 
-const PUBLISHER = 'google';
-const EMBEDDING_MODEL = 'gemini-embedding-001';
+const PROJECT_ID = 'tab-audio-app';
+const EMBEDDING_MODEL = 'text-embedding-004';
+const CHAT_MODEL = 'gemini-1.5-flash';
 
-// Vector Search Configuration
-const VECTOR_SEARCH_ENDPOINT_ID = '6958254938333904896';
-const DEPLOYED_INDEX_ID = 'tab_audio_app_1751241281157';
-
-// ✅ FIX: Initialize Firebase with explicit project ID
+// Initialize Firebase
 admin.initializeApp({ projectId: PROJECT_ID });
 const db = admin.firestore();
 
 // Initialize AI Clients
 const API_KEY = process.env.GEMINI_API_KEY;
-let textGenerationModel;
-if (API_KEY) {
-    const genAI = new GoogleGenerativeAI(API_KEY);
-    textGenerationModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-} else {
-    console.error("GEMINI_API_KEY environment variable not set. The chat service will not work.");
+if (!API_KEY) {
+    console.error("❌ GEMINI_API_KEY environment variable not set!");
 }
 
-const clientOptions = { apiEndpoint: `${LOCATION}-aiplatform.googleapis.com` };
-const predictionServiceClient = new PredictionServiceClient(clientOptions);
+const genAI = new GoogleGenerativeAI(API_KEY);
+const chatModel = genAI.getGenerativeModel({ model: CHAT_MODEL });
+const embeddingModel = genAI.getGenerativeModel({ model: EMBEDDING_MODEL });
+
+// Initialize ChromaDB
+let chromaClient;
+function getChromaClient() {
+    if (!chromaClient) {
+        chromaClient = new ChromaClient({
+            path: process.env.CHROMADB_URL || "http://localhost:8000"
+        });
+    }
+    return chromaClient;
+}
+
+// Custom embedding function for queries
+class GeminiQueryEmbedder {
+    constructor(model) {
+        this.model = model;
+    }
+
+    async generate(texts) {
+        const embeddings = [];
+        for (const text of texts) {
+            const result = await this.model.embedContent({
+                content: { parts: [{ text }] },
+                taskType: "RETRIEVAL_QUERY" // Note: QUERY for searching
+            });
+            embeddings.push(result.embedding.values);
+        }
+        return embeddings;
+    }
+}
 
 // Initialize Express app
 const app = express();
@@ -43,10 +65,12 @@ app.use(express.json());
 // Health check endpoint
 app.get('/', (req, res) => {
     res.status(200).json({ 
-        status: 'Query Service is running',
+        status: 'ChromaDB Query Service is running',
         timestamp: new Date().toISOString(),
-        model: EMBEDDING_MODEL,
-        project: PROJECT_ID
+        embeddingModel: EMBEDDING_MODEL,
+        chatModel: CHAT_MODEL,
+        project: PROJECT_ID,
+        chromadbConfigured: !!process.env.CHROMADB_URL
     });
 });
 
@@ -54,21 +78,28 @@ app.get('/', (req, res) => {
 //  Main Chat Endpoint
 // =================================================================
 app.post('/chat', async (req, res) => {
-    console.log("Received request for /chat");
+    console.log("💬 Received chat request");
 
     const { userId, question, collectionIds = [] } = req.body;
+    
     if (!userId || !question) {
-        return res.status(400).json({ error: "Missing required fields: userId and question are required." });
+        return res.status(400).json({ 
+            error: "Missing required fields: userId and question are required." 
+        });
     }
-    if (!textGenerationModel) {
-        return res.status(500).json({ error: "Server is not configured with an API key." });
+    
+    if (!API_KEY) {
+        return res.status(500).json({ 
+            error: "Server is not configured with an API key." 
+        });
     }
     
     try {
-        console.log(`Chat request from user: ${userId}`);
+        console.log(`User: ${userId}`);
         console.log(`Question: ${question}`);
         console.log(`Collection filter:`, collectionIds);
         
+        // Find relevant documents using ChromaDB
         const relevantDocs = await findRelevantDocuments(userId, question, collectionIds);
         console.log(`Found ${relevantDocs.length} relevant documents`);
 
@@ -79,12 +110,21 @@ app.post('/chat', async (req, res) => {
             });
         }
 
+        // Generate answer using the chat model
         const answer = await generateChatResponse(question, relevantDocs);
-        res.status(200).json({ answer: answer, sources: relevantDocs });
+        
+        res.status(200).json({ 
+            answer: answer, 
+            sources: relevantDocs,
+            model: CHAT_MODEL
+        });
 
     } catch (error) {
         console.error("Error during /chat processing:", error);
-        res.status(500).json({ error: "An internal error occurred while processing your chat request." });
+        res.status(500).json({ 
+            error: "An internal error occurred while processing your chat request.",
+            details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
     }
 });
 
@@ -93,265 +133,232 @@ app.post('/chat', async (req, res) => {
 // =================================================================
 
 /**
- * ✅ FIXED: Generates an embedding using correct format for gemini-embedding-001
- */
-async function generateEmbedding(text) {
-    const endpoint = `projects/${PROJECT_ID}/locations/${LOCATION}/publishers/${PUBLISHER}/models/${EMBEDDING_MODEL}`;
-    
-    // ✅ FIX: Updated request format for gemini-embedding-001
-    const instance = { 
-        content: text,
-        task_type: "RETRIEVAL_QUERY"  // For query embeddings
-    };
-    const request = { endpoint, instances: [instance] };
-    
-    console.log(`📡 Generating embedding for query`);
-    
-    try {
-        const [response] = await predictionServiceClient.predict(request);
-        
-        // ✅ FIX: Extract embedding from correct response structure
-        const embedding = response.predictions[0].structValue.fields.embedding.listValue.values.map(v => v.numberValue);
-        
-        console.log(`✅ Query embedding generated: ${embedding.length} dimensions`);
-        return embedding;
-    } catch (error) {
-        console.error(`❌ Embedding generation failed:`, {
-            message: error.message,
-            code: error.code,
-            details: error.details
-        });
-        throw error;
-    }
-}
-
-/**
- * ✅ FIXED: Finds relevant documents using proper vector search format
+ * Find relevant documents using ChromaDB vector search
  */
 async function findRelevantDocuments(userId, question, collectionIds) {
     try {
-        // Step 1: Generate embedding for the question
-        console.log('Generating embedding for question:', question);
-        let questionEmbedding;
+        const client = getChromaClient();
+        const embedder = new GeminiQueryEmbedder(embeddingModel);
+        
+        // Get user's collection
+        let collection;
         try {
-            questionEmbedding = await generateEmbedding(question);
-            console.log('Embedding generated successfully, dimension:', questionEmbedding.length);
-        } catch (embeddingError) {
-            console.error('Error generating embedding:', embeddingError);
-            throw embeddingError;
-        }
-        
-        // Step 2: Construct the findNeighbors request
-        const indexEndpoint = `projects/${PROJECT_ID}/locations/${LOCATION}/indexEndpoints/${VECTOR_SEARCH_ENDPOINT_ID}`;
-        
-        // ✅ FIX: Updated restricts format for proper filtering
-        const restricts = [
-            {
-                namespace: 'userId',
-                allowList: [userId]  // Use allowList instead of allow
-            }
-        ];
-        
-        // Add collectionId filter if collectionIds array is not empty
-        if (collectionIds && collectionIds.length > 0) {
-            restricts.push({
-                namespace: 'collectionId',
-                allowList: collectionIds  // Use allowList instead of allow
+            collection = await client.getCollection({
+                name: `user_${userId}`,
+                embeddingFunction: embedder
             });
-        }
-        
-        // ✅ FIX: Proper findNeighbors request structure
-        const findNeighborsRequest = {
-            indexEndpoint,
-            deployedIndexId: DEPLOYED_INDEX_ID,
-            queries: [{
-                datapoint: {
-                    datapointId: 'query-' + Date.now(),
-                    featureVector: questionEmbedding
-                },
-                neighborCount: 5,
-                restricts: restricts
-            }]
-        };
-        
-        console.log('FindNeighbors request structure:');
-        console.log('- Index endpoint:', indexEndpoint);
-        console.log('- Deployed index ID:', DEPLOYED_INDEX_ID);
-        console.log('- Embedding length:', questionEmbedding.length);
-        console.log('- Restricts:', JSON.stringify(restricts, null, 2));
-        
-        // Step 3: Query the vector database
-        console.log('🔍 Querying vector database...');
-        const [response] = await predictionServiceClient.findNeighbors(findNeighborsRequest);
-        
-        // Step 4: Parse the response to get document IDs and types
-        if (!response.nearestNeighbors || response.nearestNeighbors.length === 0 || 
-            !response.nearestNeighbors[0].neighbors) {
-            console.log('No neighbors found in vector database');
+        } catch (error) {
+            console.log(`No collection found for user ${userId}`);
             return [];
         }
         
-        const neighbors = response.nearestNeighbors[0].neighbors;
-        if (!neighbors || neighbors.length === 0) {
-            console.log('Empty neighbors array');
-            return [];
+        // Build where clause for filtering
+        const whereClause = {};
+        if (collectionIds && collectionIds.length > 0) {
+            whereClause.collectionId = { $in: collectionIds };
         }
         
-        console.log(`Found ${neighbors.length} vector neighbors`);
-        
-        // Group document IDs by their type for efficient batch fetching
-        const transcriptIds = [];
-        const learningPacketIds = [];
-        
-        neighbors.forEach((neighbor, index) => {
-            const datapointId = neighbor.datapoint.datapointId;
-            console.log(`Neighbor ${index + 1}: ${datapointId} (distance: ${neighbor.distance})`);
-            
-            // Extract documentType from the restricts metadata
-            let documentType = null;
-            if (neighbor.datapoint.restricts) {
-                for (const restrict of neighbor.datapoint.restricts) {
-                    if (restrict.namespace === 'documentType' && restrict.allowList && restrict.allowList.length > 0) {
-                        documentType = restrict.allowList[0];
-                        break;
-                    }
-                }
-            }
-            
-            // Group by document type
-            if (documentType === 'transcript') {
-                transcriptIds.push(datapointId);
-            } else if (documentType === 'packet') {
-                learningPacketIds.push(datapointId);
-            } else {
-                // Fallback: try both collections to find the document
-                console.log(`⚠️ Unknown document type for ${datapointId}, will search both collections`);
-                transcriptIds.push(datapointId);
-                learningPacketIds.push(datapointId);
-            }
+        // Query ChromaDB
+        console.log('🔍 Querying ChromaDB...');
+        const results = await collection.query({
+            queryTexts: [question],
+            nResults: 5,
+            where: Object.keys(whereClause).length > 0 ? whereClause : undefined
         });
         
-        console.log(`Grouped results: ${transcriptIds.length} transcripts, ${learningPacketIds.length} packets`);
+        if (!results.ids || results.ids[0].length === 0) {
+            return [];
+        }
         
-        // Step 5: Fetch the actual documents from Firestore
-        const relevantDocs = [];
+        // Fetch full documents from Firestore
+        const documents = [];
+        const ids = results.ids[0];
+        const metadatas = results.metadatas[0];
+        const distances = results.distances ? results.distances[0] : [];
         
-        // Fetch transcripts
-        for (const transcriptId of transcriptIds) {
+        for (let i = 0; i < ids.length; i++) {
+            const documentId = ids[i];
+            const metadata = metadatas[i];
+            const distance = distances[i];
+            
             try {
-                const transcriptDoc = await db
-                    .collection('users').doc(userId)
-                    .collection('transcripts').doc(transcriptId)
-                    .get();
+                // Determine the collection based on document type
+                const collectionName = metadata.documentType === 'learning_packet' 
+                    ? 'learning_packets' 
+                    : 'transcripts';
                 
-                if (transcriptDoc.exists) {
-                    const data = transcriptDoc.data();
-                    relevantDocs.push({
-                        id: transcriptId,
-                        type: 'transcript',
-                        title: data.title || 'Untitled Transcript',
+                const docRef = db.collection('users').doc(userId)
+                    .collection(collectionName).doc(documentId);
+                const docSnap = await docRef.get();
+                
+                if (docSnap.exists) {
+                    const data = docSnap.data();
+                    documents.push({
+                        id: documentId,
+                        title: data.title || metadata.title || 'Untitled',
                         content: data.content || '',
-                        collectionId: data.collectionId,
-                        createdAt: data.createdAt
+                        documentType: metadata.documentType,
+                        collectionId: metadata.collectionId,
+                        relevanceScore: distance ? (1 - distance).toFixed(3) : 'N/A',
+                        // Include learning packet specific fields if available
+                        ...(metadata.documentType === 'learning_packet' && {
+                            summary: data.summary,
+                            keyConcepts: data.keyConcepts,
+                            questions: data.questions
+                        })
                     });
-                    console.log(`✅ Found transcript: ${data.title}`);
                 } else {
-                    console.log(`⚠️ Transcript not found: ${transcriptId}`);
+                    console.warn(`Document ${documentId} found in vector DB but not in Firestore`);
                 }
             } catch (error) {
-                console.error(`Error fetching transcript ${transcriptId}:`, error);
+                console.error(`Error fetching document ${documentId}:`, error);
             }
         }
         
-        // Fetch learning packets
-        for (const packetId of learningPacketIds) {
-            try {
-                const packetDoc = await db
-                    .collection('users').doc(userId)
-                    .collection('learning_packets').doc(packetId)
-                    .get();
-                
-                if (packetDoc.exists) {
-                    const data = packetDoc.data();
-                    const summary = data.packet?.summary || '';
-                    const concepts = (data.packet?.keyConcepts || [])
-                        .map(c => `${c.concept}: ${c.definition}`)
-                        .join('\n');
-                    const actionItems = (data.packet?.actionItems || [])
-                        .map(item => `• ${item}`)
-                        .join('\n');
-                    
-                    let content = summary;
-                    if (concepts) content += `\n\nKey Concepts:\n${concepts}`;
-                    if (actionItems) content += `\n\nAction Items:\n${actionItems}`;
-                    
-                    relevantDocs.push({
-                        id: packetId,
-                        type: 'packet',
-                        title: data.title || 'Untitled Packet',
-                        content: content,
-                        collectionId: data.collectionId,
-                        createdAt: data.createdAt
-                    });
-                    console.log(`✅ Found learning packet: ${data.title}`);
-                } else {
-                    console.log(`⚠️ Learning packet not found: ${packetId}`);
-                }
-            } catch (error) {
-                console.error(`Error fetching learning packet ${packetId}:`, error);
-            }
-        }
-        
-        console.log(`Final result: ${relevantDocs.length} documents retrieved from Firestore`);
-        return relevantDocs;
+        console.log(`✅ Retrieved ${documents.length} documents from Firestore`);
+        return documents;
         
     } catch (error) {
-        console.error("Error in findRelevantDocuments:", error);
-        throw error;
+        console.error('Error in findRelevantDocuments:', error);
+        return [];
     }
 }
 
 /**
- * Generates a chat response using the relevant documents as context
+ * Generate a chat response using the Gemini model
  */
 async function generateChatResponse(question, relevantDocs) {
     // Prepare context from relevant documents
-    const context = relevantDocs.map((doc, index) => {
-        return `Source ${index + 1} (${doc.type}): ${doc.title}\n${doc.content.substring(0, 1000)}...`;
-    }).join('\n\n');
+    let context = relevantDocs.map((doc, index) => {
+        let docContext = `Document ${index + 1}: "${doc.title}"\n`;
+        
+        if (doc.documentType === 'learning_packet') {
+            // For learning packets, use structured information
+            if (doc.summary) {
+                docContext += `Summary: ${doc.summary}\n`;
+            }
+            if (doc.keyConcepts && doc.keyConcepts.length > 0) {
+                docContext += `Key Concepts:\n`;
+                doc.keyConcepts.forEach(concept => {
+                    docContext += `- ${concept.term}: ${concept.definition}\n`;
+                });
+            }
+            if (doc.questions && doc.questions.length > 0) {
+                docContext += `Related Questions:\n`;
+                doc.questions.forEach(q => {
+                    docContext += `- Q: ${q.question}\n  A: ${q.answer}\n`;
+                });
+            }
+        } else {
+            // For transcripts, use the full content
+            docContext += `Content: ${doc.content}\n`;
+        }
+        
+        docContext += `---\n`;
+        return docContext;
+    }).join('\n');
 
-    const prompt = `
-        You are a helpful AI assistant that answers questions based on the user's personal library content.
-        Your task is to answer the user's question based *only* on the provided context from their personal library.
-        Do not use any external knowledge. If the answer cannot be found in the provided sources, state that clearly.
-
-        Here is the user's question:
-        "${question}"
-
-        Here is the context from the user's library:
-        ${context}
-
-        Please provide a clear and concise answer to the question based on the sources above. If you reference specific information, mention which source it came from.
-    `;
+    const prompt = `You are a helpful AI assistant. Answer the user's question based on the provided context from their personal knowledge base. 
+    Be conversational and helpful. If the context doesn't contain enough information to fully answer the question, acknowledge this and provide the best answer you can based on what's available.
+    
+    Context from knowledge base:
+    ${context}
+    
+    User's question: ${question}
+    
+    Answer (be specific and reference the source documents when relevant):`;
 
     try {
         console.log('🤖 Generating AI response...');
-        const result = await textGenerationModel.generateContent(prompt);
-        const response = await result.response;
-        const answer = response.text();
+        const result = await chatModel.generateContent(prompt);
+        const answer = result.response.text();
         console.log('✅ AI response generated successfully');
         return answer;
     } catch (error) {
         console.error("Error in generateChatResponse:", error);
-        return "Sorry, I encountered an error while trying to generate a response.";
+        return "Sorry, I encountered an error while trying to generate a response. Please try again.";
     }
 }
 
+// =================================================================
+//  Additional Endpoints
+// =================================================================
+
+/**
+ * Get user's knowledge base statistics
+ */
+app.get('/stats/:userId', async (req, res) => {
+    const { userId } = req.params;
+    
+    try {
+        const client = getChromaClient();
+        
+        // Get user's collection
+        let collection;
+        try {
+            collection = await client.getCollection({
+                name: `user_${userId}`
+            });
+        } catch (error) {
+            return res.json({
+                userId,
+                totalDocuments: 0,
+                collections: [],
+                message: "No knowledge base found for this user"
+            });
+        }
+        
+        // Get all documents to analyze
+        const allDocs = await collection.get();
+        
+        // Calculate statistics
+        const stats = {
+            userId,
+            totalDocuments: await collection.count(),
+            documentTypes: {},
+            collections: {},
+            lastUpdated: null
+        };
+        
+        if (allDocs.metadatas) {
+            allDocs.metadatas.forEach(metadata => {
+                // Count by document type
+                stats.documentTypes[metadata.documentType] = 
+                    (stats.documentTypes[metadata.documentType] || 0) + 1;
+                
+                // Count by collection
+                stats.collections[metadata.collectionId] = 
+                    (stats.collections[metadata.collectionId] || 0) + 1;
+                
+                // Track last updated
+                if (metadata.timestamp) {
+                    const timestamp = new Date(metadata.timestamp);
+                    if (!stats.lastUpdated || timestamp > stats.lastUpdated) {
+                        stats.lastUpdated = timestamp;
+                    }
+                }
+            });
+        }
+        
+        res.json(stats);
+        
+    } catch (error) {
+        console.error('Error getting stats:', error);
+        res.status(500).json({ 
+            error: 'Failed to retrieve statistics',
+            message: error.message 
+        });
+    }
+});
+
 // Start the server
 app.listen(PORT, () => {
-    console.log(`Query Service listening on port ${PORT}`);
-    console.log(`Project ID: ${PROJECT_ID}`);
-    console.log(`Embedding Model: ${EMBEDDING_MODEL}`);
-    console.log(`Vector Search Endpoint: ${VECTOR_SEARCH_ENDPOINT_ID}`);
-    console.log(`Deployed Index: ${DEPLOYED_INDEX_ID}`);
+    console.log(`🚀 ChromaDB Query Service listening on port ${PORT}`);
+    console.log(`📊 Project ID: ${PROJECT_ID}`);
+    console.log(`🧠 Embedding Model: ${EMBEDDING_MODEL}`);
+    console.log(`💬 Chat Model: ${CHAT_MODEL}`);
+    console.log(`🗄️ ChromaDB URL: ${process.env.CHROMADB_URL || 'http://localhost:8000'}`);
+    if (!API_KEY) {
+        console.error('⚠️  WARNING: GEMINI_API_KEY not set!');
+    }
 });

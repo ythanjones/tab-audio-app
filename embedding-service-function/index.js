@@ -1,239 +1,187 @@
 // File: embedding-service-function/index.js
-// FIXED VERSION - Resolves GCLOUD_PROJECT and embedding format issues
+// ChromaDB version - Much simpler than Vertex AI!
 
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
-const { PredictionServiceClient } = require('@google-cloud/aiplatform');
+const { ChromaClient } = require('chromadb');
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 
-// --- Configuration ---
-const PROJECT_ID = 'tab-audio-app'; 
-const LOCATION = 'europe-west2'; 
-const PUBLISHER = 'google';
-const EMBEDDING_MODEL = 'gemini-embedding-001';
+// Initialize Firebase
+admin.initializeApp();
 
-// ✅ FIXED: Updated with correct IDs
-const VECTOR_SEARCH_INDEX_ID = '7989579253001748480';         // Base index ID (for upserts)
-const VECTOR_SEARCH_ENDPOINT_ID = '6958254938333904896';      // Endpoint ID
-const DEPLOYED_INDEX_ID = 'tab_audio_app_1751241281157';     // Deployed index ID
+// Configuration
+const PROJECT_ID = 'tab-audio-app';
+const EMBEDDING_MODEL = 'text-embedding-004'; // Latest stable embedding model
 
-// ✅ FIX: Initialize with explicit project ID to resolve GCLOUD_PROJECT error
-admin.initializeApp({ 
-    projectId: PROJECT_ID,
-    // This ensures GCLOUD_PROJECT is properly set
-});
+// Initialize ChromaDB client
+let chromaClient;
+let genAI;
 
-// Initialize the Vertex AI Client
-const clientOptions = { apiEndpoint: `${LOCATION}-aiplatform.googleapis.com` };
-const predictionServiceClient = new PredictionServiceClient(clientOptions);
+// Custom embedding function for ChromaDB
+class GeminiEmbeddingFunction {
+    constructor(apiKey) {
+        this.genAI = new GoogleGenerativeAI(apiKey);
+        this.model = this.genAI.getGenerativeModel({ model: EMBEDDING_MODEL });
+    }
 
-// =================================================================
-// Firestore Triggers (AUTO-EMBEDDING - Optional)
-// =================================================================
-
-/**
- * Triggers when a new transcript is created.
- * NOTE: This is disabled by default - users will manually embed content
- */
-exports.onTranscriptCreated = functions.firestore
-    .document('users/{userId}/transcripts/{docId}')
-    .onCreate(async (snap, context) => {
-        console.log(`🎙️ New transcript detected: ${context.params.docId}`);
-        
-        // ✅ OPTIONAL: Auto-embed can be disabled to let users choose
-        const AUTO_EMBED = false; // Set to true if you want automatic embedding
-        
-        if (!AUTO_EMBED) {
-            console.log(`⏸️ Auto-embedding disabled. Users will manually choose content for AI.`);
-            return { success: true, action: 'skipped_auto_embed' };
+    async generate(texts) {
+        try {
+            // ChromaDB expects an array of embeddings for an array of texts
+            const embeddings = [];
+            
+            for (const text of texts) {
+                const result = await this.model.embedContent({
+                    content: { parts: [{ text }] },
+                    taskType: "RETRIEVAL_DOCUMENT"
+                });
+                embeddings.push(result.embedding.values);
+            }
+            
+            return embeddings;
+        } catch (error) {
+            console.error('Embedding generation error:', error);
+            throw error;
         }
-        
-        const data = snap.data();
-        const textToEmbed = data.content || '';
-        
-        if (!textToEmbed.trim()) {
-            console.log(`⚠️ No content found in transcript ${context.params.docId}, skipping embedding`);
-            return { success: false, reason: 'No content' };
-        }
-        
-        return handleEmbedding({
-            firestoreDocId: context.params.docId,
-            userId: context.params.userId,
-            collectionId: data.collectionId,
-            documentType: 'transcript',
-            text: textToEmbed,
-            title: data.title || 'Untitled Transcript'
+    }
+}
+
+// Initialize ChromaDB and embedding function
+function getChromaClient() {
+    if (!chromaClient) {
+        chromaClient = new ChromaClient({
+            path: process.env.CHROMADB_PATH || "http://localhost:8000" // Can be configured for production
         });
-    });
+    }
+    return chromaClient;
+}
 
-/**
- * Triggers when a new learning packet is created.
- * NOTE: This is disabled by default - users will manually embed content
- */
-exports.onPacketCreated = functions.firestore
-    .document('users/{userId}/learning_packets/{docId}')
-    .onCreate(async (snap, context) => {
-        console.log(`📦 New learning packet detected: ${context.params.docId}`);
-        
-        // ✅ OPTIONAL: Auto-embed can be disabled to let users choose  
-        const AUTO_EMBED = false; // Set to true if you want automatic embedding
-        
-        if (!AUTO_EMBED) {
-            console.log(`⏸️ Auto-embedding disabled. Users will manually choose content for AI.`);
-            return { success: true, action: 'skipped_auto_embed' };
-        }
-        
-        const data = snap.data();
-        
-        // For packets, we combine the summary, key concepts, and action items for a richer embedding.
-        const summaryText = data.packet?.summary || '';
-        const conceptsText = (data.packet?.keyConcepts || [])
-            .map(c => `${c.concept}: ${c.definition}`)
-            .join('\n');
-        const actionItemsText = (data.packet?.actionItems || [])
-            .map(item => `• ${item}`)
-            .join('\n');
-        
-        const textToEmbed = `${data.title || 'Untitled Packet'}\n\n${summaryText}\n\nKey Concepts:\n${conceptsText}\n\nAction Items:\n${actionItemsText}`;
-
-        if (!textToEmbed.trim() || textToEmbed.length < 10) {
-            console.log(`⚠️ Insufficient content in packet ${context.params.docId}, skipping embedding`);
-            return { success: false, reason: 'Insufficient content' };
-        }
-
-        return handleEmbedding({
-            firestoreDocId: context.params.docId,
-            userId: context.params.userId,
-            collectionId: data.collectionId,
-            documentType: 'packet',
-            text: textToEmbed,
-            title: data.title || 'Untitled Packet'
-        });
-    });
+function getEmbeddingFunction() {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+        throw new Error('GEMINI_API_KEY not configured');
+    }
+    return new GeminiEmbeddingFunction(apiKey);
+}
 
 // =================================================================
-// Manual Embedding Functions (USER-CONTROLLED)
+// HTTP Functions for Manual Embedding
 // =================================================================
 
 /**
- * HTTP function to manually add content to AI knowledge base
- * Call: POST /addToKnowledgeBase with { userId, documentIds, documentType }
+ * HTTP endpoint to add documents to the AI knowledge base
  */
 exports.addToKnowledgeBase = functions.https.onRequest(async (req, res) => {
     // Enable CORS
     res.set('Access-Control-Allow-Origin', '*');
-    res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.set('Access-Control-Allow-Headers', 'Content-Type');
-    
     if (req.method === 'OPTIONS') {
-        res.status(200).send('');
-        return;
+        res.set('Access-Control-Allow-Methods', 'POST');
+        res.set('Access-Control-Allow-Headers', 'Content-Type');
+        res.set('Access-Control-Max-Age', '3600');
+        return res.status(204).send('');
     }
-    
+
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method not allowed' });
     }
+
+    const { userId, documents } = req.body;
     
-    const { userId, documentIds, documentType } = req.body;
-    
-    if (!userId || !documentIds || !Array.isArray(documentIds) || !documentType) {
+    if (!userId || !documents || !Array.isArray(documents)) {
         return res.status(400).json({ 
-            error: 'Missing required fields: userId, documentIds (array), documentType' 
+            error: 'Missing required fields',
+            expected: { userId: 'string', documents: 'array' }
         });
     }
-    
+
     try {
-        console.log(`🔧 Manual embedding requested for ${documentIds.length} ${documentType}(s)`);
+        console.log(`📚 Adding ${documents.length} documents to knowledge base for user ${userId}`);
         
+        const client = getChromaClient();
+        const embedder = getEmbeddingFunction();
+        
+        // Get or create user's collection
+        let collection;
+        try {
+            collection = await client.getCollection({
+                name: `user_${userId}`,
+                embeddingFunction: embedder
+            });
+        } catch (error) {
+            // Collection doesn't exist, create it
+            console.log(`Creating new collection for user ${userId}`);
+            collection = await client.createCollection({
+                name: `user_${userId}`,
+                embeddingFunction: embedder
+            });
+        }
+        
+        // Process documents
         const results = [];
-        const collectionPath = documentType === 'transcript' ? 'transcripts' : 'learning_packets';
+        const batch = admin.firestore().batch();
         
-        for (const documentId of documentIds) {
+        for (const doc of documents) {
             try {
-                // Fetch the document from Firestore
-                const docSnapshot = await admin.firestore()
-                    .collection('users').doc(userId)
-                    .collection(collectionPath).doc(documentId)
-                    .get();
+                const { documentId, text, title, documentType, collectionId } = doc;
                 
-                if (!docSnapshot.exists) {
-                    results.push({ 
-                        documentId, 
-                        success: false, 
-                        error: 'Document not found' 
-                    });
-                    continue;
-                }
-                
-                const data = docSnapshot.data();
-                
-                // Prepare text for embedding
-                let textToEmbed = '';
-                if (documentType === 'transcript') {
-                    textToEmbed = data.content || '';
-                } else if (documentType === 'packet') {
-                    const summaryText = data.packet?.summary || '';
-                    const conceptsText = (data.packet?.keyConcepts || [])
-                        .map(c => `${c.concept}: ${c.definition}`)
-                        .join('\n');
-                    const actionItemsText = (data.packet?.actionItems || [])
-                        .map(item => `• ${item}`)
-                        .join('\n');
-                    textToEmbed = `${data.title || 'Untitled'}\n\n${summaryText}\n\nKey Concepts:\n${conceptsText}\n\nAction Items:\n${actionItemsText}`;
-                }
-                
-                if (!textToEmbed.trim()) {
-                    results.push({ 
-                        documentId, 
-                        success: false, 
-                        error: 'No content found to embed' 
-                    });
-                    continue;
-                }
-                
-                // Generate embedding
-                const result = await handleEmbedding({
-                    firestoreDocId: documentId,
-                    userId: userId,
-                    collectionId: data.collectionId,
-                    documentType: documentType,
-                    text: textToEmbed,
-                    title: data.title || 'Untitled'
+                // Add to ChromaDB
+                await collection.add({
+                    ids: [documentId],
+                    documents: [text],
+                    metadatas: [{
+                        userId,
+                        documentId,
+                        title: title || 'Untitled',
+                        documentType: documentType || 'transcript',
+                        collectionId: collectionId || 'default',
+                        timestamp: new Date().toISOString()
+                    }]
                 });
                 
-                // Mark as embedded in Firestore
-                await docSnapshot.ref.update({
+                // Update Firestore to mark as embedded
+                const docPath = documentType === 'learning_packet' 
+                    ? `users/${userId}/learning_packets/${documentId}`
+                    : `users/${userId}/transcripts/${documentId}`;
+                    
+                const docRef = admin.firestore().doc(docPath);
+                batch.update(docRef, { 
                     embeddedInAI: true,
                     embeddedAt: admin.firestore.FieldValue.serverTimestamp()
                 });
                 
                 results.push({ 
-                    documentId, 
-                    success: result.success,
-                    error: result.error || null
+                    success: true, 
+                    documentId,
+                    message: 'Successfully added to AI knowledge base'
                 });
                 
             } catch (error) {
-                console.error(`Failed to embed document ${documentId}:`, error);
+                console.error(`Failed to embed document ${doc.documentId}:`, error);
                 results.push({ 
-                    documentId, 
                     success: false, 
+                    documentId: doc.documentId,
                     error: error.message 
                 });
             }
         }
         
-        const successCount = results.filter(r => r.success).length;
-        const failCount = results.filter(r => !r.success).length;
+        // Commit Firestore updates
+        await batch.commit();
         
-        res.json({ 
-            success: successCount > 0,
-            successCount,
-            failCount,
-            results
+        const successCount = results.filter(r => r.success).length;
+        console.log(`✅ Successfully embedded ${successCount}/${documents.length} documents`);
+        
+        res.status(200).json({ 
+            success: true,
+            results,
+            summary: {
+                total: documents.length,
+                successful: successCount,
+                failed: documents.length - successCount
+            }
         });
         
     } catch (error) {
-        console.error('Batch embedding failed:', error);
+        console.error('Error in addToKnowledgeBase:', error);
         res.status(500).json({ 
             error: 'Internal server error', 
             message: error.message 
@@ -242,57 +190,64 @@ exports.addToKnowledgeBase = functions.https.onRequest(async (req, res) => {
 });
 
 /**
- * HTTP function to remove content from AI knowledge base
- * Call: POST /removeFromKnowledgeBase with { userId, documentIds }
+ * HTTP endpoint to remove documents from the AI knowledge base
  */
 exports.removeFromKnowledgeBase = functions.https.onRequest(async (req, res) => {
     // Enable CORS
     res.set('Access-Control-Allow-Origin', '*');
-    res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.set('Access-Control-Allow-Headers', 'Content-Type');
-    
     if (req.method === 'OPTIONS') {
-        res.status(200).send('');
-        return;
+        res.set('Access-Control-Allow-Methods', 'POST');
+        res.set('Access-Control-Allow-Headers', 'Content-Type');
+        res.set('Access-Control-Max-Age', '3600');
+        return res.status(204).send('');
     }
-    
+
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method not allowed' });
     }
-    
+
     const { userId, documentIds } = req.body;
     
     if (!userId || !documentIds || !Array.isArray(documentIds)) {
         return res.status(400).json({ 
-            error: 'Missing required fields: userId, documentIds (array)' 
+            error: 'Missing required fields',
+            expected: { userId: 'string', documentIds: 'array' }
         });
     }
-    
+
     try {
-        console.log(`🗑️ Removing ${documentIds.length} documents from AI knowledge base`);
+        console.log(`🗑️ Removing ${documentIds.length} documents from knowledge base for user ${userId}`);
         
-        // Remove from vector database
-        const indexEndpoint = `projects/${PROJECT_ID}/locations/${LOCATION}/indexEndpoints/${VECTOR_SEARCH_ENDPOINT_ID}`;
+        const client = getChromaClient();
         
-        const removeRequest = {
-            indexEndpoint,
-            datapointIds: documentIds
-        };
+        // Get user's collection
+        let collection;
+        try {
+            collection = await client.getCollection({
+                name: `user_${userId}`
+            });
+        } catch (error) {
+            return res.status(404).json({ 
+                error: 'No knowledge base found for this user' 
+            });
+        }
         
-        await predictionServiceClient.removeDatapoints(removeRequest);
-        console.log(`✅ Successfully removed ${documentIds.length} datapoints from vector index`);
+        // Remove from ChromaDB
+        await collection.delete({
+            ids: documentIds
+        });
         
-        // Update Firestore documents to mark as not embedded
+        // Update Firestore
         const batch = admin.firestore().batch();
         
         for (const documentId of documentIds) {
-            // Try both transcript and packet collections
+            // Update both possible document types
             const transcriptRef = admin.firestore()
                 .collection('users').doc(userId)
                 .collection('transcripts').doc(documentId);
                 
             const packetRef = admin.firestore()
-                .collection('users').doc(userId) 
+                .collection('users').doc(userId)
                 .collection('learning_packets').doc(documentId);
             
             batch.update(transcriptRef, { 
@@ -308,9 +263,12 @@ exports.removeFromKnowledgeBase = functions.https.onRequest(async (req, res) => 
         
         await batch.commit();
         
+        console.log(`✅ Successfully removed ${documentIds.length} documents`);
+        
         res.json({ 
             success: true,
-            removedCount: documentIds.length
+            removedCount: documentIds.length,
+            message: 'Documents removed from AI knowledge base'
         });
         
     } catch (error) {
@@ -322,110 +280,30 @@ exports.removeFromKnowledgeBase = functions.https.onRequest(async (req, res) => 
     }
 });
 
-// =================================================================
-// Core Embedding and Storage Logic
-// =================================================================
-
-async function handleEmbedding(embeddingData) {
-    const { firestoreDocId, text, ...metadata } = embeddingData;
-
-    try {
-        console.log(`🧠 Generating embedding for document: ${firestoreDocId}`);
-        console.log(`📝 Document type: ${metadata.documentType}`);
-        console.log(`👤 User ID: ${metadata.userId}`);
-        console.log(`📁 Collection ID: ${metadata.collectionId}`);
-        console.log(`📄 Text length: ${text.length} characters`);
-        
-        // 1. Generate the vector embedding from the text.
-        const embedding = await generateEmbedding(text);
-        console.log(`✅ Successfully generated embedding with ${embedding.length} dimensions`);
-
-        // 2. Prepare the data point to be upserted into the Vector Search index.
-        const dataPoint = {
-            datapointId: firestoreDocId,
-            featureVector: embedding,
-            restricts: [
-                { namespace: 'userId', allowList: [metadata.userId] },
-                { namespace: 'collectionId', allowList: [metadata.collectionId] },
-                { namespace: 'documentType', allowList: [metadata.documentType] }
-            ]
-        };
-
-        // 3. Upsert the data point to the Vertex AI Vector Search index.
-        console.log(`📤 Upserting vector to index endpoint: ${VECTOR_SEARCH_ENDPOINT_ID}`);
-        await upsertToVectorSearch([dataPoint]);
-        console.log(`🎉 Successfully upserted vector for document: ${firestoreDocId}`);
-
-        return { success: true, documentId: firestoreDocId, embeddingDimensions: embedding.length };
-
-    } catch (error) {
-        console.error(`💥 Failed to process embedding for ${firestoreDocId}:`, {
-            message: error.message,
-            code: error.code,
-            details: error.details,
-            stack: error.stack?.split('\n').slice(0, 3).join('\n')
-        });
-        
-        return { success: false, error: error.message, documentId: firestoreDocId };
-    }
-}
-
 /**
- * ✅ FIXED: Generates an embedding using correct format for gemini-embedding-001
+ * Optional: Clean up empty collections
  */
-async function generateEmbedding(text) {
-    const endpoint = `projects/${PROJECT_ID}/locations/${LOCATION}/publishers/${PUBLISHER}/models/${EMBEDDING_MODEL}`;
-    
-    // ✅ FIX: Updated request format for gemini-embedding-001
-    const instance = { 
-        content: text,
-        task_type: "RETRIEVAL_DOCUMENT"  // For documents being stored
-    };
-    
-    const request = { endpoint, instances: [instance] };
-    
-    console.log(`📡 Making embedding request to: ${endpoint}`);
-    
-    try {
-        const [response] = await predictionServiceClient.predict(request);
+exports.cleanupEmptyCollections = functions.pubsub
+    .schedule('every 24 hours')
+    .onRun(async (context) => {
+        console.log('🧹 Running collection cleanup...');
         
-        // ✅ FIX: Extract embedding from correct response structure
-        const embedding = response.predictions[0].structValue.fields.embedding.listValue.values.map(v => v.numberValue);
-        
-        console.log(`✅ Embedding generated successfully: ${embedding.length} dimensions`);
-        return embedding;
-    } catch (error) {
-        console.error(`❌ Embedding generation failed:`, {
-            message: error.message,
-            code: error.code,
-            details: error.details
-        });
-        throw error;
-    }
-}
-
-/**
- * Upserts data points to the Vector Search index.
- */
-async function upsertToVectorSearch(dataPoints) {
-    const indexEndpoint = `projects/${PROJECT_ID}/locations/${LOCATION}/indexEndpoints/${VECTOR_SEARCH_ENDPOINT_ID}`;
-    
-    const request = {
-        indexEndpoint,
-        datapoints: dataPoints,
-    };
-    
-    console.log(`🚀 Upserting ${dataPoints.length} datapoint(s) to: ${indexEndpoint}`);
-    
-    try {
-        await predictionServiceClient.upsertDatapoints(request);
-        console.log(`✅ Successfully upserted ${dataPoints.length} datapoint(s)`);
-    } catch (error) {
-        console.error(`❌ Upsert failed:`, {
-            message: error.message,
-            code: error.code,
-            details: error.details
-        });
-        throw error;
-    }
-}
+        try {
+            const client = getChromaClient();
+            const collections = await client.listCollections();
+            
+            for (const collection of collections) {
+                const col = await client.getCollection({ name: collection.name });
+                const count = await col.count();
+                
+                if (count === 0) {
+                    console.log(`Deleting empty collection: ${collection.name}`);
+                    await client.deleteCollection({ name: collection.name });
+                }
+            }
+            
+            console.log('✅ Cleanup complete');
+        } catch (error) {
+            console.error('Cleanup failed:', error);
+        }
+    });
