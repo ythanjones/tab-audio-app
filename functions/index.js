@@ -9,8 +9,8 @@
 
 const functions = require("firebase-functions/v2/https");
 const logger = require("firebase-functions/logger");
-const embeddingService = require('../embedding-service-function/index.js');
+const embeddingFunctions = require('../embedding-service-function/index.js');
 
-exports.addToKnowledgeBase = embeddingService.addToKnowledgeBase;
-exports.removeFromKnowledgeBase = embeddingService.removeFromKnowledgeBase;
+exports.addToKnowledgeBase = embeddingFunctions.addToKnowledgeBase;
+exports.removeFromKnowledgeBase = embeddingFunctions.removeFromKnowledgeBase;
 
